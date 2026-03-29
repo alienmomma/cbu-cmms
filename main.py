@@ -11,8 +11,7 @@ from fastapi.responses import FileResponse
 from config import settings
 from backend.database import init_db, get_db, AsyncSessionLocal
 from backend.services.mqtt_ingestion import start_mqtt_client, get_reading_queue
-from backend.services.reading_store import append_reading, get_buffered_readings_sync
-from backend.services.anomaly_detection import update_anomaly_from_buffer
+from backend.services.reading_store import append_reading
 from backend.services.instrument_service import get_instrument_by_tag
 from api import router as api_router
 from api.auth_routes import router as auth_router
@@ -32,7 +31,8 @@ async def on_reading(tag_number: str, timestamp: datetime, value: float, unit: s
         inst = await get_instrument_by_tag(session, tag_number)
 
     if inst:
-        # Isolation Forest anomaly detection
+        # Isolation Forest anomaly detection (lazy import — numpy/sklearn are heavy)
+        from backend.services.anomaly_detection import update_anomaly_from_buffer
         update_anomaly_from_buffer(
             tag_number,
             inst.nominal_value,

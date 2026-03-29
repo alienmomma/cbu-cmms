@@ -42,15 +42,26 @@ class InstrumentResponse(BaseModel):
         from_attributes = True
 
 
+class CalibrationPoint(BaseModel):
+    """One row of a 5-point ISA-51.1 calibration test."""
+    pct:          float           # 0 / 25 / 50 / 75 / 100
+    ref_val:      float
+    as_found:     float | None = None
+    as_left:      float | None = None
+    err_found_pct: float | None = None
+    err_left_pct:  float | None = None
+
+
 class CalibrationRecordCreate(BaseModel):
-    instrument_id:   int
-    performed_at:    datetime
-    passed:          bool
-    performed_by:    str | None = None
-    notes:           str | None = None
-    as_found_value:  float | None = None
-    as_left_value:   float | None = None
-    reference_value: float | None = None
+    instrument_id:        int
+    performed_at:         datetime
+    passed:               bool
+    performed_by:         str | None = None
+    notes:                str | None = None
+    as_found_value:       float | None = None   # legacy scalar — derived from 50% row
+    as_left_value:        float | None = None
+    reference_value:      float | None = None
+    calibration_points:   list[CalibrationPoint] | None = None  # full 5-point data
 
 
 class MaintenanceRecordCreate(BaseModel):

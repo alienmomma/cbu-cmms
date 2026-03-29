@@ -1,7 +1,7 @@
 """SQLAlchemy models for instruments, maintenance, and readings."""
 from datetime import datetime
 import enum
-from sqlalchemy import String, Float, Integer, DateTime, Text, ForeignKey, Boolean, Enum as SQLEnum, Column
+from sqlalchemy import String, Float, Integer, DateTime, Text, ForeignKey, Boolean, Enum as SQLEnum, Column, JSON
 from sqlalchemy.orm import relationship
 
 from backend.database import Base
@@ -76,6 +76,9 @@ class CalibrationRecord(Base):
     reference_value = Column(Float, nullable=True)
     error_found_pct = Column(Float, nullable=True)
     error_left_pct  = Column(Float, nullable=True)
+    # Five-point ISA-51.1 calibration data — list of dicts:
+    # [{pct, ref_val, as_found, as_left, err_found_pct, err_left_pct}, ...]
+    calibration_points = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     instrument = relationship("Instrument", back_populates="calibrations")

@@ -645,7 +645,7 @@
 
           <div style="overflow-x:auto;">
             <table class="data">
-              <thead><tr><th>WO #</th><th>Title</th><th>Tag</th><th>Type</th><th>Priority</th><th>Status</th><th>Created</th><th>Update status</th></tr></thead>
+              <thead><tr><th>WO #</th><th>Title</th><th>Tag</th><th>Type</th><th>Priority</th><th>Status</th><th>Created</th><th>Update status</th><th></th></tr></thead>
               <tbody id="wo-tbody"></tbody>
             </table>
           </div>
@@ -732,19 +732,43 @@
 
   <!-- Calibration modal -->
   <div class="modal-overlay hidden" id="modal-cal">
-    <div class="modal">
+    <div class="modal" style="max-width:860px;width:96vw;">
       <h3 id="modal-cal-title">Record Calibration</h3>
       <input type="hidden" id="cal-instrument-id" />
       <div class="form-grid">
         <div class="form-row"><label>Performed at *</label><input type="datetime-local" id="cal-performed-at" /></div>
         <div class="form-row"><label>Performed by</label><input id="cal-performed-by" placeholder="Technician name" /></div>
-        <div class="form-row"><label>Result *</label>
+        <div class="form-row"><label>Overall Result *</label>
           <select id="cal-passed"><option value="true">Pass</option><option value="false">Fail</option></select>
         </div>
       </div>
-      <div class="form-row" style="max-width:100%;"><label>Notes</label><textarea id="cal-notes" placeholder="Optional notes…"></textarea></div>
+      <!-- 5-point ISA-51.1 calibration data table -->
+      <div style="margin:14px 0 6px;display:flex;align-items:center;gap:8px;">
+        <span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);">Calibration Data — ISA-51.1 Five-Point Test</span>
+        <span id="cal-unit-badge" style="font-size:11px;background:var(--sidebar-bg);color:#94a3b8;padding:1px 7px;border-radius:4px;"></span>
+      </div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;" id="cal-points-table">
+          <thead>
+            <tr style="background:#1e293b;color:#fff;">
+              <th style="padding:6px 8px;text-align:center;white-space:nowrap;">Test Point</th>
+              <th style="padding:6px 8px;text-align:center;white-space:nowrap;">Reference</th>
+              <th style="padding:6px 8px;text-align:center;white-space:nowrap;">As-Found</th>
+              <th style="padding:6px 8px;text-align:center;white-space:nowrap;">Error Found %</th>
+              <th style="padding:6px 8px;text-align:center;white-space:nowrap;">As-Left</th>
+              <th style="padding:6px 8px;text-align:center;white-space:nowrap;">Error Left %</th>
+            </tr>
+          </thead>
+          <tbody id="cal-points-tbody"></tbody>
+        </table>
+      </div>
+      <div class="form-row" style="max-width:100%;margin-top:10px;"><label>Notes</label><textarea id="cal-notes" placeholder="Optional notes…"></textarea></div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outlined btn-sm" id="modal-cal-cancel">Cancel</button>
+        <button type="button" class="btn btn-outlined btn-sm" id="modal-cal-print" style="display:none;" title="Print calibration certificate">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          Print Certificate
+        </button>
         <button type="button" class="btn btn-sm" id="modal-cal-save">Save calibration</button>
       </div>
     </div>
@@ -1219,7 +1243,8 @@ function renderInstTable(list) {
       b.className = 'btn btn-outlined btn-sm ' + (cls||'');
       b.textContent = label; b.addEventListener('click', fn); return b;
     }
-    const calBtn   = mkBtn('Cal', '', ()=>openCalModal(inst.id, inst.tag_number));
+    const calBtn     = mkBtn('Cal', '', ()=>openCalModal(inst));
+    const printCalBtn = mkBtn('Print Cal', '', ()=>printCalBlank(inst.id));
     const maintBtn = mkBtn('Maint', '', ()=>openMaintModal(inst.id, inst.tag_number));
     const mlBtn    = mkBtn(inst.ml_trained?'Re-train ML':'Train ML', '', ()=>{
       mlBtn.disabled=true; mlBtn.textContent='Training…';
@@ -1236,7 +1261,7 @@ function renderInstTable(list) {
         snack('Instrument deleted'); refreshInstruments(); refreshDashboard();
       });
     });
-    [calBtn, maintBtn, mlBtn, delBtn].forEach((b,i)=>{ if(i) actCell.appendChild(document.createTextNode(' ')); actCell.appendChild(b); });
+    [calBtn, printCalBtn, maintBtn, mlBtn, delBtn].forEach((b,i)=>{ if(i) actCell.appendChild(document.createTextNode(' ')); actCell.appendChild(b); });
 
     api.get(API+'/instruments/'+inst.id+'/status').then(s=>{
       const stEl = document.getElementById('st-'+inst.id);
@@ -1292,31 +1317,120 @@ document.getElementById('instrument-form').addEventListener('submit', e=>{
 });
 
 // ─── Calibration modal ────────────────────────────────────────────────────────
-function openCalModal(id, tag) {
-  document.getElementById('cal-instrument-id').value = id;
+let _calInst = null;   // current instrument object in the modal
+
+function openCalModal(inst) {
+  _calInst = inst;
+  document.getElementById('cal-instrument-id').value = inst.id;
   const now = new Date(); now.setMinutes(now.getMinutes()-now.getTimezoneOffset());
   document.getElementById('cal-performed-at').value = now.toISOString().slice(0,16);
   document.getElementById('cal-performed-by').value = '';
   document.getElementById('cal-notes').value = '';
-  document.getElementById('modal-cal-title').textContent = 'Record Calibration – '+tag;
+  document.getElementById('cal-passed').value = 'true';
+  document.getElementById('modal-cal-title').textContent = 'Record Calibration \u2013 ' + inst.tag_number;
+  document.getElementById('cal-unit-badge').textContent = inst.unit || '';
+
+  // Build 5-point table rows
+  const span = inst.range_max - inst.range_min;
+  const tbody = document.getElementById('cal-points-tbody');
+  tbody.innerHTML = '';
+  [0, 25, 50, 75, 100].forEach(pct => {
+    const refVal = inst.range_min + span * pct / 100;
+    const refStr = parseFloat(refVal.toPrecision(6));
+    const rowId  = 'calpt-' + pct;
+    const tr = document.createElement('tr');
+    tr.style.background = pct % 2 === 0 ? '' : '#f8fafc';
+    tr.innerHTML = `
+      <td style="padding:4px 8px;text-align:center;font-weight:600;">${pct}&nbsp;%</td>
+      <td style="padding:4px 8px;text-align:center;color:#475569;">${refStr}</td>
+      <td style="padding:3px 6px;"><input type="number" id="${rowId}-af" step="any"
+        style="width:90px;padding:3px 5px;border:1px solid #cbd5e1;border-radius:4px;font-size:12px;"
+        placeholder="—" /></td>
+      <td id="${rowId}-afe" style="padding:4px 8px;text-align:center;color:#64748b;font-size:11px;">—</td>
+      <td style="padding:3px 6px;"><input type="number" id="${rowId}-al" step="any"
+        style="width:90px;padding:3px 5px;border:1px solid #cbd5e1;border-radius:4px;font-size:12px;"
+        placeholder="—" /></td>
+      <td id="${rowId}-ale" style="padding:4px 8px;text-align:center;color:#64748b;font-size:11px;">—</td>`;
+    tbody.appendChild(tr);
+
+    // Live error calculation
+    function calcErrors() {
+      const af = parseFloat(document.getElementById(rowId+'-af').value);
+      const al = parseFloat(document.getElementById(rowId+'-al').value);
+      const afeEl = document.getElementById(rowId+'-afe');
+      const aleEl = document.getElementById(rowId+'-ale');
+      if (!isNaN(af) && span > 0) {
+        const e = ((af - refVal) / span * 100).toFixed(3);
+        afeEl.textContent = e + ' %';
+        afeEl.style.color = Math.abs(e) > 1 ? '#dc2626' : '#059669';
+      } else { afeEl.textContent = '—'; afeEl.style.color = '#64748b'; }
+      if (!isNaN(al) && span > 0) {
+        const e = ((al - refVal) / span * 100).toFixed(3);
+        aleEl.textContent = e + ' %';
+        aleEl.style.color = Math.abs(e) > 1 ? '#dc2626' : '#059669';
+      } else { aleEl.textContent = '—'; aleEl.style.color = '#64748b'; }
+    }
+    document.getElementById(rowId+'-af').addEventListener('input', calcErrors);
+    document.getElementById(rowId+'-al').addEventListener('input', calcErrors);
+  });
+
+  document.getElementById('modal-cal-print').style.display = 'none';
   document.getElementById('modal-cal').classList.remove('hidden');
 }
-document.getElementById('modal-cal-cancel').addEventListener('click',()=>document.getElementById('modal-cal').classList.add('hidden'));
-document.getElementById('modal-cal').addEventListener('click',e=>{if(e.target===e.currentTarget)e.currentTarget.classList.add('hidden');});
+
+document.getElementById('modal-cal').addEventListener('click',e=>{
+  if(e.target===e.currentTarget){
+    e.currentTarget.classList.add('hidden');
+    document.getElementById('modal-cal-print').style.display='none';
+    _lastCalId=null; _calInst=null;
+  }
+});
+let _lastCalId = null;
+
 document.getElementById('modal-cal-save').addEventListener('click',()=>{
   const at = document.getElementById('cal-performed-at').value;
   if(!at){snack('Performed at is required',true);return;}
+
+  // Collect 5-point data
+  const points = [];
+  let hasAnyData = false;
+  if (_calInst) {
+    const span = _calInst.range_max - _calInst.range_min;
+    [0, 25, 50, 75, 100].forEach(pct => {
+      const refVal = _calInst.range_min + span * pct / 100;
+      const af = parseFloat(document.getElementById('calpt-'+pct+'-af').value);
+      const al = parseFloat(document.getElementById('calpt-'+pct+'-al').value);
+      const pt = { pct: pct, ref_val: parseFloat(refVal.toPrecision(6)),
+        as_found: isNaN(af) ? null : af,
+        as_left:  isNaN(al) ? null : al };
+      points.push(pt);
+      if (!isNaN(af) || !isNaN(al)) hasAnyData = true;
+    });
+  }
+
   api.post(API+'/calibrations',{
-    instrument_id: parseInt(document.getElementById('cal-instrument-id').value,10),
-    performed_at:  new Date(at).toISOString(),
-    passed:        document.getElementById('cal-passed').value==='true',
-    performed_by:  document.getElementById('cal-performed-by').value.trim()||null,
-    notes:         document.getElementById('cal-notes').value.trim()||null,
+    instrument_id:       parseInt(document.getElementById('cal-instrument-id').value,10),
+    performed_at:        new Date(at).toISOString(),
+    passed:              document.getElementById('cal-passed').value==='true',
+    performed_by:        document.getElementById('cal-performed-by').value.trim()||null,
+    notes:               document.getElementById('cal-notes').value.trim()||null,
+    calibration_points:  hasAnyData ? points : null,
   }).then(res=>{
     if(!res.ok){snack(apiErr(res.body.detail),true);return;}
-    snack('Calibration recorded'); document.getElementById('modal-cal').classList.add('hidden');
+    _lastCalId = res.body.id || null;
+    const printBtn = document.getElementById('modal-cal-print');
+    if(_lastCalId){ printBtn.style.display=''; } else { printBtn.style.display='none'; }
+    snack('Calibration recorded — click Print Certificate to open the document');
     refreshInstruments(); refreshDashboard();
   }).catch(()=>snack('Network error',true));
+});
+document.getElementById('modal-cal-cancel').addEventListener('click',()=>{
+  document.getElementById('modal-cal').classList.add('hidden');
+  document.getElementById('modal-cal-print').style.display='none';
+  _lastCalId=null; _calInst=null;
+});
+document.getElementById('modal-cal-print').addEventListener('click',()=>{
+  if(_lastCalId) printCalCert(_lastCalId);
 });
 
 // ─── Maintenance modal ────────────────────────────────────────────────────────
@@ -1378,6 +1492,12 @@ function refreshWorkOrders() {
             <option value="cancelled"${wo.status==='cancelled'?' selected':''}>Cancelled</option>
           </select>
           <button type="button" class="btn btn-outlined btn-sm wo-save" data-id="${wo.id}" style="margin-left:4px;">Save</button>
+        </td>
+        <td style="white-space:nowrap;">
+          <button type="button" class="btn btn-outlined btn-sm" onclick="printWorkOrder(${wo.id})" title="Open printable work order">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            Print
+          </button>
         </td>`;
       tbody.appendChild(tr);
     });
@@ -1588,6 +1708,34 @@ function dlReport(fmt) {
 }
 document.getElementById('report-download-csv').addEventListener('click',()=>dlReport('csv'));
 document.getElementById('report-download-pdf').addEventListener('click',()=>dlReport('pdf'));
+
+// ─── Print documents ─────────────────────────────────────────────────────────
+function _openAuthPrint(url) {
+  // Fetch the HTML with auth headers, then open in a new tab via a blob URL.
+  fetch(url, {headers: _authHeaders()}).then(r => {
+    if(r.status===401){_handleUnauth();return;}
+    if(!r.ok){snack('Could not load document (HTTP '+r.status+')',true);return;}
+    r.text().then(html => {
+      const blob = new Blob([html], {type:'text/html'});
+      const bUrl = URL.createObjectURL(blob);
+      const win  = window.open(bUrl, '_blank');
+      if(win) win.addEventListener('load', ()=>URL.revokeObjectURL(bUrl), {once:true});
+      else    snack('Pop-up blocked — allow pop-ups for this site and try again', true);
+    });
+  }).catch(()=>snack('Network error loading document',true));
+}
+
+function printWorkOrder(id) {
+  _openAuthPrint(API + '/print/work-order/' + id);
+}
+
+function printCalCert(id) {
+  _openAuthPrint(API + '/print/calibration/' + id);
+}
+
+function printCalBlank(instrumentId) {
+  _openAuthPrint(API + '/print/calibration/instrument/' + instrumentId);
+}
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 function initApp() {

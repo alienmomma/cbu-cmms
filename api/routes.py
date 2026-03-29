@@ -35,14 +35,6 @@ from backend.services.instrument_service import (
     add_maintenance_record,
     delete_instrument_by_id,
 )
-from backend.services.anomaly_detection import (
-    get_anomaly_state,
-    get_anomaly_score,
-    is_model_trained,
-    discard_trained_model,
-    get_model_versions,
-    activate_version,
-)
 from backend.services.cusum_detector import (
     get_alert_state as cusum_alert_state,
     get_accumulators as cusum_accumulators,
@@ -55,10 +47,6 @@ from backend.services.reading_store import (
     clear_buffer_for_tag,
 )
 from backend.services.rules import rule_based_status
-from backend.services.health_index import compute_health_index
-from backend.services.feature_extraction import extract_features, feature_vector
-from backend.services.anomaly_detection import train_model
-from backend.services.simulator import is_running as simulator_is_running, start as simulator_start, stop as simulator_stop, get_tags as simulator_get_tags
 from backend.services.report_generation import ReportGenerator
 from backend.services.report_export import report_attachment
 from backend.services.work_order_service import (
@@ -70,7 +58,6 @@ from backend.services.work_order_service import (
 )
 from backend.models import WorkOrder, WorkOrderStatus
 from config import settings
-import numpy as np
 
 router = APIRouter()
 
@@ -114,6 +101,7 @@ def _work_order_to_response(wo: WorkOrder) -> WorkOrderResponse:
 
 
 def _instrument_to_response(inst: Instrument) -> InstrumentResponse:
+    from backend.services.anomaly_detection import is_model_trained
     return InstrumentResponse(
         id=inst.id,
         tag_number=inst.tag_number,
@@ -215,6 +203,7 @@ async def api_delete_instrument(instrument_id: int, db: AsyncSession = Depends(g
     tag = await delete_instrument_by_id(db, instrument_id)
     if tag is None:
         raise HTTPException(404, "Instrument not found")
+    from backend.services.anomaly_detection import discard_trained_model
     discard_trained_model(tag)
     await clear_buffer_for_tag(tag)
     return Response(status_code=204)
@@ -222,7 +211,7 @@ async def api_delete_instrument(instrument_id: int, db: AsyncSession = Depends(g
 
 @router.post("/calibrations", status_code=201)
 async def api_add_calibration(body: CalibrationRecordCreate, db: AsyncSession = Depends(get_db), _user: User = Depends(require_any_role)):
-    await add_calibration_record(
+    rec = await add_calibration_record(
         db,
         instrument_id=body.instrument_id,
         performed_at=body.performed_at,
@@ -232,12 +221,14 @@ async def api_add_calibration(body: CalibrationRecordCreate, db: AsyncSession = 
         as_found_value=body.as_found_value,
         as_left_value=body.as_left_value,
         reference_value=body.reference_value,
+        calibration_points=[p.model_dump() for p in body.calibration_points] if body.calibration_points else None,
     )
+    await db.commit()
     # Reset CUSUM — instrument has been verified
     inst = await get_instrument_by_id(db, body.instrument_id)
     if inst:
         cusum_reset(inst.tag_number)
-    return {"ok": True}
+    return {"ok": True, "id": rec.id}
 
 
 @router.post("/maintenance", status_code=201)
@@ -263,6 +254,8 @@ async def api_instrument_status(instrument_id: int, db: AsyncSession = Depends(g
     readings = get_buffered_readings_sync(inst.tag_number, since)
     last_value = readings[-1][1] if readings else None
     last_ts = readings[-1][0] if readings else None
+    from backend.services.anomaly_detection import get_anomaly_state, get_anomaly_score
+    from backend.services.health_index import compute_health_index
     rule_status = rule_based_status(last_value, inst) if last_value is not None else "normal"
     anomaly_state = get_anomaly_state(inst.tag_number)
     anomaly_score = get_anomaly_score(inst.tag_number)
@@ -298,6 +291,7 @@ async def api_instrument_status(instrument_id: int, db: AsyncSession = Depends(g
 @router.get("/alerts", response_model=list[AlertSummary])
 async def api_alerts(db: AsyncSession = Depends(get_db), _user: User = Depends(require_any_role)):
     """Aggregate alerts: calibration overdue, rule-based critical/warning, ML warning/critical."""
+    from backend.services.anomaly_detection import get_anomaly_state
     alerts = []
     instruments = await list_instruments(db)
     for inst in instruments:
@@ -386,6 +380,9 @@ async def api_ml_train(tag_number: str, db: AsyncSession = Depends(get_db), _use
     for ts, val in rows:
         bucket = int(ts.timestamp()) // window_sec * window_sec
         windows.setdefault(bucket, []).append((ts, val))
+    import numpy as np
+    from backend.services.feature_extraction import extract_features
+    from backend.services.anomaly_detection import train_model
     features_list = []
     for bucket_readings in windows.values():
         f = extract_features(
@@ -414,6 +411,7 @@ async def api_ml_versions(tag_number: str, db: AsyncSession = Depends(get_db), _
     inst = await get_instrument_by_tag(db, tag_number)
     if not inst:
         raise HTTPException(404, "Instrument not found")
+    from backend.services.anomaly_detection import get_model_versions
     return {"tag_number": tag_number, "versions": get_model_versions(tag_number)}
 
 
@@ -423,6 +421,7 @@ async def api_ml_activate(tag_number: str, version_id: str, db: AsyncSession = D
     inst = await get_instrument_by_tag(db, tag_number)
     if not inst:
         raise HTTPException(404, "Instrument not found")
+    from backend.services.anomaly_detection import activate_version
     if not activate_version(tag_number, version_id):
         raise HTTPException(404, "Version not found or model file missing")
     return {"ok": True, "tag_number": tag_number, "active_version": version_id}
@@ -431,6 +430,7 @@ async def api_ml_activate(tag_number: str, version_id: str, db: AsyncSession = D
 @router.get("/dashboard/summary")
 async def api_dashboard_summary(db: AsyncSession = Depends(get_db), _user: User = Depends(require_any_role)):
     """Summary for dashboard: total instruments, overdue count, alert count."""
+    from backend.services.anomaly_detection import get_anomaly_state
     instruments = await list_instruments(db)
     overdue = sum(1 for i in instruments if is_calibration_overdue(i))
     alert_count = 0
@@ -457,6 +457,7 @@ async def api_dashboard_summary(db: AsyncSession = Depends(get_db), _user: User 
 @router.get("/simulator/status")
 async def api_simulator_status(_user: User = Depends(require_any_role)):
     """Whether the built-in MQTT simulator is running, plus which tags are active."""
+    from backend.services.simulator import is_running as simulator_is_running, get_tags as simulator_get_tags
     running = simulator_is_running()
     tags = simulator_get_tags()
     return {
@@ -476,6 +477,7 @@ async def api_simulator_start(body: SimulatorStartBody | None = None, db: AsyncS
     Builds the tag list from registered instruments in the database.
     Optionally restricted to a subset by providing tag_numbers in the request body.
     """
+    from backend.services.simulator import is_running as simulator_is_running, start as simulator_start
     if simulator_is_running():
         return {"ok": False, "message": "Simulator already running"}
 
@@ -502,6 +504,7 @@ async def api_simulator_start(body: SimulatorStartBody | None = None, db: AsyncS
 @router.post("/simulator/stop")
 async def api_simulator_stop(_user: User = Depends(require_admin)):
     """Stop the built-in MQTT simulator."""
+    from backend.services.simulator import stop as simulator_stop
     if simulator_stop():
         return {"ok": True, "message": "Simulator stopped"}
     return {"ok": False, "message": "Simulator was not running"}
@@ -769,3 +772,71 @@ async def api_mark_notification_read(
     notif.is_read = True
     await db.commit()
     return {"ok": True}
+
+
+# ============================================================================
+# PRINT DOCUMENT ENDPOINTS
+# ============================================================================
+
+from fastapi.responses import HTMLResponse
+from backend.services.print_documents import work_order_html, calibration_certificate_html, calibration_certificate_blank_html
+from sqlalchemy.orm import selectinload as _sil
+
+
+@router.get("/print/work-order/{work_order_id}", response_class=HTMLResponse)
+async def api_print_work_order(
+    work_order_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(require_any_role),
+):
+    """Return a self-contained, print-ready HTML work order document."""
+    result = await db.execute(
+        select(WorkOrder)
+        .options(_sil(WorkOrder.instrument))
+        .where(WorkOrder.id == work_order_id)
+    )
+    wo = result.scalar_one_or_none()
+    if not wo:
+        raise HTTPException(404, "Work order not found")
+    return HTMLResponse(content=work_order_html(wo))
+
+
+@router.get("/print/calibration/{calibration_id}", response_class=HTMLResponse)
+async def api_print_calibration_certificate(
+    calibration_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(require_any_role),
+):
+    """Return a self-contained, print-ready ISO/IEC 17025 calibration certificate."""
+    from backend.models import CalibrationRecord
+    result = await db.execute(
+        select(CalibrationRecord)
+        .options(_sil(CalibrationRecord.instrument))
+        .where(CalibrationRecord.id == calibration_id)
+    )
+    cal = result.scalar_one_or_none()
+    if not cal:
+        raise HTTPException(404, "Calibration record not found")
+    return HTMLResponse(content=calibration_certificate_html(cal, cal.instrument))
+
+
+@router.get("/print/calibration/instrument/{instrument_id}", response_class=HTMLResponse)
+async def api_print_calibration_blank(
+    instrument_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(require_any_role),
+):
+    """Return a blank calibration certificate pre-filled with instrument data (field use)."""
+    from backend.models import CalibrationRecord
+    inst = await db.get(Instrument, instrument_id)
+    if not inst:
+        raise HTTPException(404, "Instrument not found")
+    # Load latest calibration record for schedule reference
+    cal_result = await db.execute(
+        select(CalibrationRecord)
+        .where(CalibrationRecord.instrument_id == instrument_id)
+        .order_by(CalibrationRecord.performed_at.desc())
+        .limit(1)
+    )
+    latest_cal = cal_result.scalar_one_or_none()
+    return HTMLResponse(content=calibration_certificate_blank_html(inst, latest_cal))

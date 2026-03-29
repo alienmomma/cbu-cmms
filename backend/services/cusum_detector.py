@@ -38,8 +38,6 @@ from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from pathlib import Path
 
-import numpy as np
-
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -124,6 +122,7 @@ def initialize_from_data(
     """
     if not readings or len(readings) < 10:
         return
+    import numpy as np
     values = np.array([v for _, v in readings], dtype=float)
     mu0    = float(np.mean(values))
     sigma  = float(np.std(values))

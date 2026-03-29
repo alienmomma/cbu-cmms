@@ -102,15 +102,47 @@ async def add_calibration_record(
     as_found_value: float | None = None,
     as_left_value: float | None = None,
     reference_value: float | None = None,
+    calibration_points: list | None = None,
 ) -> CalibrationRecord:
-    """Add a calibration record and set due_next_at from instrument interval."""
+    """Add a calibration record and set due_next_at from instrument interval.
+
+    If calibration_points (5-point ISA-51.1 list) is supplied, errors are computed
+    for each point and the scalar as_found/as_left fields are derived from the 50 %
+    row so that legacy code continues to work.
+    """
     inst = await get_instrument_by_id(db, instrument_id)
     if not inst:
         raise ValueError("Instrument not found")
     due_next = performed_at + timedelta(days=inst.calibration_interval_days)
+    span = inst.range_max - inst.range_min
 
-    # Compute calibration error percentages if data available
-    span = inst.range_max - inst.range_min if inst else None
+    # ── Enrich and normalise 5-point data ──────────────────────────────────────
+    stored_points = None
+    if calibration_points:
+        stored_points = []
+        for pt in calibration_points:
+            pt_dict = pt if isinstance(pt, dict) else pt.model_dump()
+            ref = pt_dict.get("ref_val") or (inst.range_min + span * pt_dict["pct"] / 100.0)
+            af  = pt_dict.get("as_found")
+            al  = pt_dict.get("as_left")
+            efe = round((af - ref) / span * 100.0, 4) if (af is not None and span > 0) else None
+            ele = round((al - ref) / span * 100.0, 4) if (al is not None and span > 0) else None
+            stored_points.append({
+                "pct":          pt_dict["pct"],
+                "ref_val":      round(ref, 6),
+                "as_found":     af,
+                "as_left":      al,
+                "err_found_pct": efe,
+                "err_left_pct":  ele,
+            })
+        # Derive scalar fields from the 50 % test point for backward compat
+        mid = next((p for p in stored_points if p["pct"] == 50.0), None)
+        if mid:
+            as_found_value  = mid["as_found"]
+            as_left_value   = mid["as_left"]
+            reference_value = mid["ref_val"]
+
+    # ── Scalar errors (used when no 5-point data, or as summary) ───────────────
     error_found = None
     error_left  = None
     if reference_value is not None and span and span > 0:
@@ -131,6 +163,7 @@ async def add_calibration_record(
         reference_value=reference_value,
         error_found_pct=error_found,
         error_left_pct=error_left,
+        calibration_points=stored_points,
     )
     db.add(rec)
     await db.flush()

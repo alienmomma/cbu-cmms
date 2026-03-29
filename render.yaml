@@ -1,0 +1,69 @@
+services:
+  - type: web
+    name: cbu-cmms
+    runtime: python
+    region: oregon          # alternatives: frankfurt, singapore, ohio, virginia
+    plan: starter           # starter ($7/mo) required for persistent disk
+                            # change to "free" to test without disk (data lost on restart)
+
+    buildCommand: pip install -r requirements.txt && python scripts/seed_admin.py
+
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1
+    # workers=1 is required — SQLite does not support concurrent writers across processes
+
+    healthCheckPath: /api/auth/me   # Render monitors this; returns 401 (not 5xx) = healthy
+
+    # ── Persistent disk ────────────────────────────────────────────────────────
+    # Keeps cimms.db, ML models, and CUSUM state between deploys and restarts.
+    # Remove this block if using the free plan (accepts data loss on restart).
+    disk:
+      name: cmms-data
+      mountPath: /data
+      sizeGB: 1
+
+    # ── Environment variables ──────────────────────────────────────────────────
+    envVars:
+      # Security — Render generates a secure random secret automatically
+      - key: JWT_SECRET_KEY
+        generateValue: true
+
+      # Database on the persistent disk
+      - key: DATABASE_URL
+        value: sqlite+aiosqlite:////data/cimms.db   # 4 slashes = absolute path
+
+      # ML model and app-data directories on the persistent disk
+      - key: DATA_DIR
+        value: /data/data
+
+      - key: MODELS_DIR
+        value: /data/models
+
+      - key: DEBUG
+        value: "false"
+
+      # Simulator off in production — enable only for demos
+      - key: SIMULATOR_ENABLED
+        value: "false"
+
+      # ── MQTT broker ─────────────────────────────────────────────────────────
+      # Replace with your broker hostname (HiveMQ Cloud, EMQX Cloud, etc.)
+      # Leave as localhost if you are not using live instrument data.
+      - key: MQTT_BROKER
+        value: localhost
+
+      - key: MQTT_PORT
+        value: "1883"
+
+      # ── Optional tuning — uncomment and set as needed ────────────────────────
+      # - key: JWT_EXPIRE_HOURS
+      #   value: "8"
+      # - key: AGGREGATION_WINDOW_SECONDS
+      #   value: "60"
+      # - key: ANOMALY_CONTAMINATION
+      #   value: "0.05"
+      # - key: CUSUM_K
+      #   value: "0.5"
+      # - key: CUSUM_H
+      #   value: "5.0"
+      # - key: STUCK_SENSOR_MINUTES
+      #   value: "15"
