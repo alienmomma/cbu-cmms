@@ -1,0 +1,1613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <title>CBU CMMS · Maintenance &amp; Monitoring</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <style>
+    :root {
+      --sidebar-bg: #0f172a;
+      --sidebar-hover: rgba(255,255,255,0.06);
+      --sidebar-active: rgba(99,102,241,0.18);
+      --sidebar-active-txt: #818cf8;
+      --sidebar-txt: #94a3b8;
+      --sidebar-txt-active: #e2e8f0;
+      --sidebar-border: rgba(255,255,255,0.07);
+      --sidebar-w: 240px;
+
+      --bg: #f1f5f9;
+      --surface: #ffffff;
+      --surface2: #f8fafc;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --text-2: #475569;
+      --text-3: #94a3b8;
+
+      --accent: #4f46e5;
+      --accent-hover: #4338ca;
+      --accent-pale: #eef2ff;
+      --success: #059669;
+      --success-pale: #ecfdf5;
+      --warning: #d97706;
+      --warning-pale: #fffbeb;
+      --critical: #dc2626;
+      --critical-pale: #fef2f2;
+
+      --radius: 8px;
+      --radius-lg: 12px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.05);
+      --shadow-md: 0 4px 16px rgba(0,0,0,0.10);
+      --shadow-lg: 0 8px 32px rgba(0,0,0,0.12);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; min-height: 100vh; }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
+      background: var(--sidebar-bg); display: flex; flex-direction: column;
+      border-right: 1px solid var(--sidebar-border); z-index: 20; overflow-y: auto;
+    }
+    .sidebar-logo {
+      padding: 20px 20px 16px; border-bottom: 1px solid var(--sidebar-border);
+      display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+    }
+    .sidebar-logo-icon {
+      width: 34px; height: 34px; background: var(--accent); border-radius: 8px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .sidebar-logo-icon svg { width: 18px; height: 18px; color: #fff; }
+    .sidebar-logo-text { line-height: 1.2; }
+    .sidebar-logo-text .name { font-size: 0.9rem; font-weight: 700; color: #f1f5f9; }
+    .sidebar-logo-text .sub  { font-size: 0.65rem; color: var(--sidebar-txt); letter-spacing: 0.03em; }
+
+    .sidebar-section { padding: 16px 12px 6px; font-size: 0.65rem; font-weight: 600;
+      color: #475569; text-transform: uppercase; letter-spacing: 0.08em; }
+    .nav-link {
+      display: flex; align-items: center; gap: 10px; padding: 9px 12px; margin: 1px 8px;
+      border-radius: 7px; color: var(--sidebar-txt); text-decoration: none; font-size: 0.84rem;
+      font-weight: 500; transition: background 0.12s, color 0.12s; cursor: pointer; border: none; background: none; width: calc(100% - 16px);
+    }
+    .nav-link:hover  { background: var(--sidebar-hover); color: var(--sidebar-txt-active); }
+    .nav-link.active { background: var(--sidebar-active); color: var(--sidebar-active-txt); }
+    .nav-link svg    { width: 16px; height: 16px; flex-shrink: 0; }
+    .nav-link .nav-label { flex: 1; }
+    .nav-badge { background: var(--critical); color: #fff; font-size: 0.6rem; font-weight: 700;
+      border-radius: 10px; padding: 1px 6px; line-height: 1.6; display: none; }
+    .nav-badge.show { display: inline-block; }
+    .sidebar-footer {
+      margin-top: auto; padding: 12px 8px; border-top: 1px solid var(--sidebar-border);
+    }
+    .sidebar-user {
+      display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 7px;
+    }
+    .sidebar-avatar {
+      width: 30px; height: 30px; border-radius: 50%; background: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.72rem; font-weight: 700; color: #fff; flex-shrink: 0;
+    }
+    .sidebar-user-info { flex: 1; min-width: 0; }
+    .sidebar-user-name { font-size: 0.8rem; font-weight: 600; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sidebar-user-role { font-size: 0.68rem; color: var(--sidebar-txt); text-transform: capitalize; }
+    .btn-logout-sidebar {
+      background: none; border: none; cursor: pointer; color: var(--sidebar-txt);
+      padding: 4px; border-radius: 5px; display: flex; align-items: center;
+    }
+    .btn-logout-sidebar:hover { color: #f87171; background: rgba(248,113,113,0.1); }
+    .btn-logout-sidebar svg { width: 16px; height: 16px; }
+
+    /* ── Top bar ── */
+    .topbar {
+      position: fixed; top: 0; left: var(--sidebar-w); right: 0; height: 56px;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 24px; gap: 12px; z-index: 10;
+    }
+    .topbar-title { font-size: 0.9375rem; font-weight: 600; color: var(--text); flex: 1; }
+    .topbar-refresh { font-size: 0.75rem; color: var(--text-3); }
+    .bell-wrap { position: relative; cursor: pointer; }
+    .bell-btn {
+      background: none; border: 1px solid var(--border); border-radius: 7px;
+      padding: 6px 8px; cursor: pointer; color: var(--text-2);
+      display: flex; align-items: center; transition: background 0.12s;
+    }
+    .bell-btn:hover { background: var(--bg); }
+    .bell-btn svg { width: 16px; height: 16px; }
+    .bell-badge {
+      position: absolute; top: -4px; right: -4px; background: var(--critical);
+      color: #fff; border-radius: 50%; width: 17px; height: 17px;
+      font-size: 0.6rem; font-weight: 700; display: none;
+      align-items: center; justify-content: center; border: 2px solid var(--surface);
+    }
+    .bell-badge.show { display: flex; }
+    .notif-panel {
+      position: absolute; right: 0; top: calc(100% + 8px); width: 340px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); z-index: 50;
+      max-height: 380px; overflow-y: auto; display: none;
+    }
+    .notif-panel.open { display: block; }
+    .notif-header { padding: 12px 16px; font-size: 0.75rem; font-weight: 600;
+      color: var(--text-2); border-bottom: 1px solid var(--border); text-transform: uppercase; letter-spacing: 0.06em; }
+    .notif-item { padding: 11px 16px; border-bottom: 1px solid var(--border); cursor: pointer; }
+    .notif-item:last-child { border-bottom: none; }
+    .notif-item:hover { background: var(--bg); }
+    .notif-item.unread { background: var(--accent-pale); }
+    .notif-title { font-size: 0.82rem; font-weight: 600; }
+    .notif-msg   { font-size: 0.76rem; color: var(--text-2); margin-top: 2px; }
+    .notif-time  { font-size: 0.68rem; color: var(--text-3); margin-top: 3px; }
+    .notif-empty { padding: 20px; text-align: center; color: var(--text-3); font-size: 0.85rem; }
+
+    /* ── Layout ── */
+    .layout { margin-left: var(--sidebar-w); padding-top: 56px; min-height: 100vh; }
+    .main { padding: 24px 28px; }
+
+    /* ── Panels ── */
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    /* ── Page header ── */
+    .page-header { margin-bottom: 20px; }
+    .page-header h2 { font-size: 1.25rem; font-weight: 700; color: var(--text); }
+    .page-header p  { font-size: 0.8rem; color: var(--text-2); margin-top: 3px; }
+
+    /* ── Card ── */
+    .card { background: var(--surface); border-radius: var(--radius-lg); border: 1px solid var(--border); padding: 20px 24px; margin-bottom: 20px; }
+    .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; gap: 12px; }
+    .card-title { font-size: 0.9rem; font-weight: 600; color: var(--text); }
+    .card-sub   { font-size: 0.75rem; color: var(--text-3); margin-top: 1px; }
+    h3.section-title { font-size: 0.7rem; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 10px; }
+
+    /* ── KPI grid ── */
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; }
+    .kpi-card {
+      background: var(--surface); border-radius: var(--radius-lg); border: 1px solid var(--border);
+      padding: 18px 20px; display: flex; flex-direction: column; gap: 6px;
+    }
+    .kpi-icon {
+      width: 36px; height: 36px; border-radius: 9px; display: flex;
+      align-items: center; justify-content: center; margin-bottom: 4px;
+    }
+    .kpi-icon svg { width: 18px; height: 18px; }
+    .kpi-icon.blue   { background: var(--accent-pale); color: var(--accent); }
+    .kpi-icon.red    { background: var(--critical-pale); color: var(--critical); }
+    .kpi-icon.amber  { background: var(--warning-pale); color: var(--warning); }
+    .kpi-icon.purple { background: #f5f3ff; color: #7c3aed; }
+    .kpi-value { font-size: 1.875rem; font-weight: 700; line-height: 1; color: var(--text); }
+    .kpi-label { font-size: 0.75rem; color: var(--text-2); font-weight: 500; }
+
+    /* ── Instrument health cards ── */
+    .inst-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+    .inst-card {
+      background: var(--surface); border-radius: var(--radius-lg); border: 1px solid var(--border);
+      padding: 16px; cursor: pointer; transition: box-shadow 0.15s, border-color 0.15s, transform 0.1s;
+      position: relative; overflow: hidden;
+    }
+    .inst-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); border-color: #cbd5e1; }
+    .inst-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    }
+    .inst-card.sc-normal::before   { background: var(--success); }
+    .inst-card.sc-warning::before  { background: var(--warning); }
+    .inst-card.sc-critical::before { background: var(--critical); }
+    .ic-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+    .ic-tag  { font-weight: 700; font-size: 1rem; color: var(--text); }
+    .ic-type { font-size: 0.68rem; color: var(--text-2); background: var(--bg); padding: 2px 8px; border-radius: 12px; font-weight: 500; }
+    .ic-gauge { display: flex; flex-direction: column; align-items: center; margin: 4px 0 8px; }
+    .ic-gauge svg { overflow: visible; }
+    .ic-gauge-val { font-size: 1.25rem; font-weight: 700; color: var(--text); margin-top: 2px; line-height: 1; }
+    .ic-gauge-unit { font-size: 0.72rem; color: var(--text-3); margin-top: 1px; }
+    .ic-nodata { font-size: 0.8rem; color: var(--text-3); margin: 12px 0 8px; text-align: center; font-style: italic; }
+    .ic-health-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .ic-health-score { font-size: 0.78rem; font-weight: 600; }
+    .ic-health-lbl   { font-size: 0.72rem; color: var(--text-3); }
+    .ic-badges { display: flex; flex-wrap: wrap; gap: 4px; }
+
+    /* ── Badges ── */
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 0.69rem; font-weight: 600; }
+    .badge.normal      { background: var(--success-pale); color: var(--success); }
+    .badge.warning     { background: var(--warning-pale); color: var(--warning); }
+    .badge.critical    { background: var(--critical-pale); color: var(--critical); }
+    .badge.overdue     { background: var(--critical-pale); color: var(--critical); }
+    .badge.trained     { background: var(--accent-pale); color: var(--accent); }
+    .badge.open        { background: var(--accent-pale); color: var(--accent); }
+    .badge.in_progress { background: var(--warning-pale); color: var(--warning); }
+    .badge.completed   { background: var(--success-pale); color: var(--success); }
+    .badge.cancelled   { background: var(--bg); color: var(--text-3); }
+    .badge.urgent      { background: var(--critical-pale); color: var(--critical); }
+    .badge.high        { background: var(--warning-pale); color: var(--warning); }
+    .badge.medium      { background: #ede9fe; color: #6d28d9; }
+    .badge.low         { background: var(--bg); color: var(--text-3); }
+
+    /* ── Table ── */
+    table.data { width: 100%; border-collapse: collapse; }
+    table.data th, table.data td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    table.data th { font-size: 0.7rem; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.06em; background: var(--surface2); }
+    table.data tr:last-child td { border-bottom: none; }
+    table.data tbody tr:hover { background: var(--surface2); }
+    tr.priority-urgent { background: #fff5f5; }
+    tr.priority-high   { background: #fffbf0; }
+
+    /* ── Buttons ── */
+    .btn {
+      font-family: inherit; font-size: 0.8125rem; font-weight: 600; padding: 8px 16px;
+      border-radius: var(--radius); border: none; cursor: pointer;
+      background: var(--accent); color: #fff; transition: background 0.12s; display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn:hover { background: var(--accent-hover); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-outlined { background: transparent; color: var(--text-2); border: 1px solid var(--border); }
+    .btn-outlined:hover { background: var(--bg); color: var(--text); }
+    .btn-sm { padding: 5px 12px; font-size: 0.75rem; }
+    .btn-success { background: var(--success); } .btn-success:hover { background: #047857; }
+    .btn-danger  { color: var(--critical); border-color: #fca5a5; background: var(--critical-pale); }
+    .btn-danger:hover { background: #fee2e2; }
+
+    /* ── Toolbar + forms ── */
+    .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+    input, select, textarea {
+      font-family: inherit; font-size: 0.875rem; padding: 8px 12px;
+      border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface);
+      color: var(--text); width: 100%; max-width: 320px; transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
+    textarea { max-width: 100%; min-height: 72px; resize: vertical; }
+    .form-row { margin-bottom: 12px; }
+    .form-row label { display: block; font-size: 0.7rem; font-weight: 600; color: var(--text-2); margin-bottom: 5px; }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
+
+    /* ── Empty + loading ── */
+    .empty { color: var(--text-3); text-align: center; padding: 32px; font-size: 0.85rem; }
+    .loading-wrap { text-align: center; padding: 28px; color: var(--text-3); }
+    .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Snackbar ── */
+    .snackbar { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #1e293b; color: #f1f5f9; padding: 12px 20px; border-radius: var(--radius); box-shadow: var(--shadow-lg); z-index: 300; display: none; max-width: 90vw; font-size: 0.875rem; font-weight: 500; }
+    .snackbar.error { background: var(--critical); }
+    .snackbar.show  { display: block; }
+
+    /* ── Alerts ── */
+    .alert-card { border: 1px solid var(--border); border-left: 4px solid var(--border); padding: 14px 16px; margin-bottom: 10px; background: var(--surface); border-radius: var(--radius); }
+    .alert-card.critical { border-left-color: var(--critical); background: #fff5f5; }
+    .alert-card.warning  { border-left-color: var(--warning); background: #fffdf0; }
+    .alert-row   { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+    .alert-body  { flex: 1; }
+    .alert-tag   { font-weight: 700; font-size: 0.9rem; }
+    .alert-msg   { color: var(--text-2); font-size: 0.875rem; margin-top: 3px; }
+    .alert-meta  { display: flex; gap: 8px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
+    .alert-src   { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.67rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+    .alert-src.rule { background: var(--accent-pale); color: var(--accent); }
+    .alert-src.ml   { background: #f5f3ff; color: #7c3aed; }
+    .alert-time { font-size: 0.7rem; color: var(--text-3); }
+
+    /* ── Trend chart ── */
+    .trend-chart-wrap { height: 280px; position: relative; margin-top: 8px; }
+    #trend-canvas { width: 100% !important; height: 100% !important; }
+    .trend-stats { font-size: 0.8125rem; color: var(--text-2); padding: 10px 14px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); margin-top: 10px; }
+
+    /* ── Report ── */
+    .report-summary-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+    .report-stat { background: var(--accent-pale); border-radius: var(--radius); padding: 10px 16px; min-width: 110px; }
+    .report-stat .rs-val { font-size: 1.25rem; font-weight: 700; color: var(--accent); line-height: 1; }
+    .report-stat .rs-lbl { font-size: 0.68rem; color: var(--text-2); margin-top: 3px; text-transform: capitalize; }
+    .report-section-title { font-size: 0.72rem; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.06em; margin: 14px 0 8px; padding-top: 14px; border-top: 1px solid var(--border); }
+    .report-table-wrap { overflow-x: auto; }
+    .report-output { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; overflow: auto; max-height: 400px; font-family: ui-monospace, monospace; font-size: 11px; white-space: pre-wrap; margin-top: 8px; }
+    details > summary { cursor: pointer; font-size: 0.8125rem; color: var(--text-2); padding: 4px 0; user-select: none; }
+
+    /* ── Collapsible ── */
+    .collapse-header { cursor: pointer; user-select: none; display: flex; align-items: center; gap: 8px; }
+    .collapse-header .arrow { display: inline-block; font-style: normal; transition: transform 0.2s; font-size: 0.75rem; color: var(--text-3); }
+    .collapse-header.open .arrow { transform: rotate(90deg); }
+    .collapse-body { overflow: hidden; max-height: 0; transition: max-height 0.3s ease; }
+    .collapse-body.open { max-height: 600px; }
+
+    /* ── Modal ── */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+    .modal-overlay.hidden { display: none; }
+    .modal { background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); padding: 24px; min-width: 340px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto; }
+    .modal h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 16px; }
+    .modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+
+    /* ── Chips ── */
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .chip { background: var(--bg); border: 1px solid var(--border); padding: 3px 10px; border-radius: 99px; font-size: 0.72rem; color: var(--text-2); font-weight: 500; }
+
+    /* ── Inline health bar ── */
+    .tbl-health { display: flex; align-items: center; gap: 6px; }
+    .tbl-health-bar { width: 52px; height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .tbl-health-fill { height: 100%; border-radius: 3px; }
+    .hf-good    { background: var(--success); }
+    .hf-fair    { background: var(--warning); }
+    .hf-poor    { background: var(--critical); }
+    .hf-unknown { background: var(--text-3); }
+
+    /* ── Login overlay ── */
+    .login-overlay {
+      position: fixed; inset: 0; z-index: 1000;
+      background: var(--sidebar-bg);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .login-overlay.hidden { display: none; }
+    .login-bg-pattern {
+      position: absolute; inset: 0; overflow: hidden; pointer-events: none;
+      background-image: radial-gradient(circle at 20% 20%, rgba(99,102,241,0.15) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 80%, rgba(79,70,229,0.1) 0%, transparent 50%);
+    }
+    .login-card {
+      position: relative; background: #1e293b; border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px; padding: 40px 44px; width: 380px; max-width: 92vw;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.5);
+    }
+    .login-logo {
+      width: 48px; height: 48px; background: var(--accent); border-radius: 12px;
+      display: flex; align-items: center; justify-content: center; margin-bottom: 20px;
+    }
+    .login-logo svg { width: 26px; height: 26px; color: #fff; }
+    .login-card h2 { font-size: 1.5rem; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
+    .login-card .login-sub { font-size: 0.82rem; color: #64748b; margin-bottom: 28px; }
+    .login-card .form-row label { color: #94a3b8; }
+    .login-card input {
+      max-width: 100%; background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1);
+      color: #f1f5f9;
+    }
+    .login-card input::placeholder { color: #475569; }
+    .login-card input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(99,102,241,0.25); }
+    .login-card .btn { width: 100%; justify-content: center; padding: 11px; font-size: 0.9rem; margin-top: 6px; }
+    .login-error { color: #f87171; font-size: 0.8rem; margin-top: 10px; display: none; }
+    .login-error.show { display: block; }
+
+    /* ── Responsive ── */
+    @media (max-width: 900px) {
+      :root { --sidebar-w: 0px; }
+      .sidebar { transform: translateX(-100%); }
+      .topbar  { left: 0; }
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .inst-cards { grid-template-columns: 1fr; }
+      .main { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Login overlay -->
+  <div class="login-overlay" id="login-overlay">
+    <div class="login-bg-pattern"></div>
+    <div class="login-card">
+      <div class="login-logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+        </svg>
+      </div>
+      <h2>CBU CMMS</h2>
+      <p class="login-sub">Copperbelt University — Maintenance &amp; Monitoring</p>
+      <div class="form-row"><label>Employee Number</label><input id="login-empno" placeholder="e.g. ADMIN001" autocomplete="username" /></div>
+      <div class="form-row" style="margin-bottom:4px;"><label>Password</label><input id="login-password" type="password" autocomplete="current-password" /></div>
+      <button type="button" id="login-btn" class="btn">Sign In</button>
+      <div id="login-error" class="login-error"></div>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+        </svg>
+      </div>
+      <div class="sidebar-logo-text">
+        <div class="name">CBU CMMS</div>
+        <div class="sub">Maintenance System</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">Main</div>
+
+    <a href="#" class="nav-link active" data-panel="dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      <span class="nav-label">Dashboard</span>
+    </a>
+    <a href="#" class="nav-link" data-panel="instruments">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span class="nav-label">Instruments</span>
+    </a>
+    <a href="#" class="nav-link" data-panel="workorders">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      <span class="nav-label">Work Orders</span>
+    </a>
+
+    <div class="sidebar-section">Monitoring</div>
+
+    <a href="#" class="nav-link" data-panel="alerts">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <span class="nav-label">Alerts</span>
+      <span id="alert-badge" class="nav-badge">0</span>
+    </a>
+    <a href="#" class="nav-link" data-panel="trends">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      <span class="nav-label">Trends</span>
+    </a>
+    <a href="#" class="nav-link" data-panel="reports">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+      <span class="nav-label">Reports</span>
+    </a>
+
+    <div class="sidebar-footer" id="sidebar-footer" style="display:none;">
+      <div class="sidebar-user">
+        <div class="sidebar-avatar" id="sidebar-avatar">?</div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name" id="user-name">—</div>
+          <div class="sidebar-user-role" id="user-role">—</div>
+        </div>
+        <button class="btn-logout-sidebar" id="logout-btn" title="Sign out">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="topbar-title" id="topbar-title">Dashboard</div>
+    <span class="topbar-refresh" id="last-refresh"></span>
+    <div class="bell-wrap" id="bell-wrap" style="display:none;">
+      <button class="bell-btn" id="bell-btn" title="Notifications">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      </button>
+      <span class="bell-badge" id="bell-badge"></span>
+      <div class="notif-panel" id="notif-panel">
+        <div class="notif-header">Notifications</div>
+        <div id="notif-list"><div class="notif-empty">No notifications</div></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <main class="main">
+
+      <!-- ═══════════ DASHBOARD ═══════════ -->
+      <section id="panel-dashboard" class="panel active">
+        <div class="page-header">
+          <h2>Dashboard</h2>
+          <p>Overview of all monitored instruments and active alerts</p>
+        </div>
+
+        <div class="kpi-grid" style="margin-bottom:20px;">
+          <div class="kpi-card">
+            <div class="kpi-icon blue">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="kpi-value" id="s-total">–</div>
+            <div class="kpi-label">Total instruments</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon red">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </div>
+            <div class="kpi-value" id="s-overdue">–</div>
+            <div class="kpi-label">Calibration overdue</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon amber">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <div class="kpi-value" id="s-alerts">–</div>
+            <div class="kpi-label">Active alerts</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-icon purple">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            </div>
+            <div class="kpi-value" id="s-wo">–</div>
+            <div class="kpi-label">Open work orders</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Instrument Health</div>
+              <div class="card-sub">Click any card to view trend data</div>
+            </div>
+          </div>
+          <div id="dashboard-instruments"><div class="loading-wrap"><span class="spinner"></span>Loading…</div></div>
+        </div>
+
+        <div class="card">
+          <div class="collapse-header" id="sim-hdr">
+            <em class="arrow">&#9658;</em>
+            <div class="card-title">Data Simulator</div>
+          </div>
+          <div class="collapse-body" id="sim-body">
+            <div style="padding-top:12px;">
+              <p style="color:var(--text-2);font-size:0.875rem;margin-bottom:10px;">Publishes synthetic readings to MQTT (localhost:1883). Requires a running broker (e.g. Mosquitto).</p>
+              <p style="margin-bottom:10px;"><strong id="sim-status">Checking…</strong></p>
+              <div id="sim-tag-list" style="margin-bottom:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+                <span style="font-size:0.8rem;color:var(--text-3);">Loading instruments…</span>
+              </div>
+              <div class="toolbar" style="gap:6px;">
+                <button type="button" id="sim-select-all"  class="btn btn-outlined btn-sm">All</button>
+                <button type="button" id="sim-select-none" class="btn btn-outlined btn-sm">None</button>
+                <button type="button" id="sim-start" class="btn btn-sm btn-success">Start</button>
+                <button type="button" id="sim-stop"  class="btn btn-outlined btn-sm">Stop</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Live Readings</div>
+              <div class="card-sub">Auto-refresh every 5 s</div>
+            </div>
+          </div>
+          <div id="live-readings-wrap"><div class="loading-wrap"><span class="spinner"></span>Loading…</div></div>
+        </div>
+      </section>
+
+      <!-- ═══════════ INSTRUMENTS ═══════════ -->
+      <section id="panel-instruments" class="panel">
+        <div class="page-header">
+          <h2>Instrument Register</h2>
+          <p>Manage all monitored process instruments</p>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <input id="inst-search" placeholder="Search tag, type, variable, location…" style="max-width:300px;" />
+            <button type="button" id="add-instrument-btn" class="btn btn-sm">+ Add instrument</button>
+          </div>
+
+          <div id="add-instrument-form" style="display:none;margin-bottom:20px;padding:16px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);">
+            <h3 class="section-title">New instrument</h3>
+            <form id="instrument-form">
+              <div class="form-grid">
+                <div class="form-row"><label>Tag number *</label><input id="tag_number" required placeholder="PT-101" /></div>
+                <div class="form-row"><label>Type *</label>
+                  <select id="instrument_type" required><option value="">Select…</option><option>pressure</option><option>temperature</option><option>flow</option><option>level</option></select></div>
+                <div class="form-row"><label>Measured variable *</label><input id="measured_variable" required placeholder="Process pressure" /></div>
+                <div class="form-row"><label>Unit *</label><input id="unit" required placeholder="bar" /></div>
+                <div class="form-row"><label>Range min *</label><input type="number" id="range_min" step="any" required /></div>
+                <div class="form-row"><label>Range max *</label><input type="number" id="range_max" step="any" required /></div>
+                <div class="form-row"><label>Nominal value</label><input type="number" id="nominal_value" step="any" /></div>
+                <div class="form-row"><label>Calibration interval (days) *</label><input type="number" id="calibration_interval_days" required /></div>
+                <div class="form-row"><label>Criticality *</label>
+                  <select id="criticality" required><option value="">Select…</option><option>low</option><option>medium</option><option>high</option><option>critical</option></select></div>
+                <div class="form-row"><label>Location</label><input id="location" placeholder="Unit 1" /></div>
+                <div class="form-row"><label>Associated equipment</label><input id="associated_equipment" /></div>
+                <div class="form-row"><label>Accuracy class</label><input id="accuracy_class" placeholder="0.5%" /></div>
+              </div>
+              <div class="toolbar" style="margin-top:14px;">
+                <button type="submit" class="btn btn-sm">Create</button>
+                <button type="button" id="cancel-add-btn" class="btn btn-outlined btn-sm">Cancel</button>
+              </div>
+            </form>
+          </div>
+
+          <div style="overflow-x:auto;">
+            <table class="data">
+              <thead><tr><th>Tag</th><th>Type</th><th>Variable</th><th>Range</th><th>Cal due</th><th>Health</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody id="instruments-tbody"></tbody>
+            </table>
+          </div>
+          <p class="empty" id="instruments-empty" style="display:none;">No instruments registered. Add one above or run the seed script.</p>
+        </div>
+      </section>
+
+      <!-- ═══════════ WORK ORDERS ═══════════ -->
+      <section id="panel-workorders" class="panel">
+        <div class="page-header">
+          <h2>Work Orders</h2>
+          <p>Track corrective, preventive, and calibration work</p>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div style="display:flex;gap:8px;align-items:center;">
+              <select id="wo-filter-status" style="max-width:160px;">
+                <option value="">All statuses</option>
+                <option value="open">Open</option>
+                <option value="in_progress">In progress</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+              <button type="button" id="wo-refresh" class="btn btn-outlined btn-sm">Refresh</button>
+            </div>
+          </div>
+
+          <div style="margin-bottom:16px;padding:14px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface2);">
+            <div class="collapse-header" id="wo-form-hdr">
+              <em class="arrow">&#9658;</em>
+              <h3 class="section-title" style="margin:0;">Create work order</h3>
+            </div>
+            <div class="collapse-body" id="wo-form-body">
+              <div style="padding-top:12px;">
+                <div class="form-grid">
+                  <div class="form-row"><label>Instrument (optional)</label><select id="wo-instrument-id"><option value="">— None —</option></select></div>
+                  <div class="form-row"><label>Title *</label><input id="wo-title" placeholder="Inspect valve after trip" /></div>
+                  <div class="form-row"><label>Type</label>
+                    <select id="wo-type"><option value="corrective">Corrective</option><option value="calibration">Calibration</option><option value="inspection">Inspection</option><option value="preventive">Preventive</option></select></div>
+                  <div class="form-row"><label>Priority</label>
+                    <select id="wo-priority"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option><option value="urgent">Urgent</option></select></div>
+                  <div class="form-row"><label>Assign to</label><input id="wo-assign" placeholder="Technician name" /></div>
+                </div>
+                <div class="form-row" style="max-width:100%;"><label>Description</label><textarea id="wo-desc"></textarea></div>
+                <button type="button" id="wo-submit" class="btn btn-sm">Create work order</button>
+              </div>
+            </div>
+          </div>
+
+          <div style="overflow-x:auto;">
+            <table class="data">
+              <thead><tr><th>WO #</th><th>Title</th><th>Tag</th><th>Type</th><th>Priority</th><th>Status</th><th>Created</th><th>Update status</th></tr></thead>
+              <tbody id="wo-tbody"></tbody>
+            </table>
+          </div>
+          <p class="empty" id="wo-empty" style="display:none;">No work orders. Create one above or generate from an alert.</p>
+        </div>
+      </section>
+
+      <!-- ═══════════ ALERTS ═══════════ -->
+      <section id="panel-alerts" class="panel">
+        <div class="page-header">
+          <h2>Active Alerts</h2>
+          <p>Auto-refreshes every 30 s — click Create WO to raise a work order</p>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Alert Feed</div>
+            <button type="button" id="alerts-refresh" class="btn btn-outlined btn-sm">Refresh</button>
+          </div>
+          <div id="alerts-list"><div class="loading-wrap"><span class="spinner"></span>Loading…</div></div>
+        </div>
+      </section>
+
+      <!-- ═══════════ TRENDS ═══════════ -->
+      <section id="panel-trends" class="panel">
+        <div class="page-header">
+          <h2>Trend Viewer</h2>
+          <p>Historical readings with range and nominal annotations</p>
+        </div>
+        <div class="card">
+          <div class="toolbar" style="gap:14px;flex-wrap:wrap;">
+            <div class="form-row" style="margin:0;"><label>Instrument (tag)</label><select id="trendTag" style="max-width:220px;"></select></div>
+            <div class="form-row" style="margin:0;"><label>Time range</label>
+              <select id="trendHours" style="max-width:150px;">
+                <option value="1">Last 1 hour</option>
+                <option value="6">Last 6 hours</option>
+                <option value="24" selected>Last 24 hours</option>
+                <option value="72">Last 3 days</option>
+                <option value="168">Last 7 days</option>
+              </select>
+            </div>
+            <div class="form-row" style="margin:0;"><label>&nbsp;</label>
+              <button type="button" id="trendRefresh" class="btn btn-sm">Load trend</button>
+            </div>
+          </div>
+          <div class="trend-chart-wrap"><canvas id="trend-canvas"></canvas></div>
+          <p class="empty" id="trend-empty">Select a tag and click Load trend.</p>
+          <div id="trend-stats" class="trend-stats" style="display:none;"></div>
+        </div>
+      </section>
+
+      <!-- ═══════════ REPORTS ═══════════ -->
+      <section id="panel-reports" class="panel">
+        <div class="page-header">
+          <h2>Reports</h2>
+          <p>Compliance and maintenance reports — download as CSV or PDF</p>
+        </div>
+        <div class="card">
+          <div class="toolbar" style="flex-wrap:wrap;">
+            <button class="btn btn-sm report-load"              data-endpoint="/reports/calibration">Calibration</button>
+            <button class="btn btn-outlined btn-sm report-load" data-endpoint="/reports/maintenance"  data-query="days_back=90">Maintenance (90d)</button>
+            <button class="btn btn-outlined btn-sm report-load" data-endpoint="/reports/health-status">Health Status</button>
+            <button class="btn btn-outlined btn-sm report-load" data-endpoint="/reports/anomalies"    data-query="days_back=7">Anomalies (7d)</button>
+            <button class="btn btn-outlined btn-sm report-load" data-endpoint="/reports/compliance">Compliance</button>
+            <button class="btn btn-outlined btn-sm report-load" data-endpoint="/reports/work-orders"  data-query="days_back=365">Work Orders</button>
+          </div>
+          <div id="report-chips" class="chips"></div>
+          <div id="report-summary-grid" class="report-summary-grid" style="display:none;"></div>
+          <div id="report-rendered"></div>
+          <details>
+            <summary>Show raw JSON</summary>
+            <div id="report-output" class="report-output" style="display:none;"></div>
+          </details>
+          <div class="toolbar" style="margin-top:10px;">
+            <button type="button" id="report-download-csv" class="btn btn-outlined btn-sm" style="display:none;">Download CSV</button>
+            <button type="button" id="report-download-pdf" class="btn btn-outlined btn-sm" style="display:none;">Download PDF</button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <div id="snackbar" class="snackbar"></div>
+
+  <!-- Calibration modal -->
+  <div class="modal-overlay hidden" id="modal-cal">
+    <div class="modal">
+      <h3 id="modal-cal-title">Record Calibration</h3>
+      <input type="hidden" id="cal-instrument-id" />
+      <div class="form-grid">
+        <div class="form-row"><label>Performed at *</label><input type="datetime-local" id="cal-performed-at" /></div>
+        <div class="form-row"><label>Performed by</label><input id="cal-performed-by" placeholder="Technician name" /></div>
+        <div class="form-row"><label>Result *</label>
+          <select id="cal-passed"><option value="true">Pass</option><option value="false">Fail</option></select>
+        </div>
+      </div>
+      <div class="form-row" style="max-width:100%;"><label>Notes</label><textarea id="cal-notes" placeholder="Optional notes…"></textarea></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outlined btn-sm" id="modal-cal-cancel">Cancel</button>
+        <button type="button" class="btn btn-sm" id="modal-cal-save">Save calibration</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Maintenance modal -->
+  <div class="modal-overlay hidden" id="modal-maint">
+    <div class="modal">
+      <h3 id="modal-maint-title">Record Maintenance</h3>
+      <input type="hidden" id="maint-instrument-id" />
+      <div class="form-grid">
+        <div class="form-row"><label>Action type *</label>
+          <select id="maint-action-type">
+            <option value="inspection">Inspection</option>
+            <option value="repair">Repair</option>
+            <option value="replacement">Replacement</option>
+            <option value="cleaning">Cleaning</option>
+            <option value="adjustment">Adjustment</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="form-row"><label>Technician</label><input id="maint-technician" placeholder="Name" /></div>
+      </div>
+      <div class="form-row" style="max-width:100%;"><label>Description</label><textarea id="maint-description" placeholder="Describe work performed…"></textarea></div>
+      <div class="form-row" style="max-width:100%;"><label>Notes</label><textarea id="maint-notes"></textarea></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outlined btn-sm" id="modal-maint-cancel">Cancel</button>
+        <button type="button" class="btn btn-sm" id="modal-maint-save">Save maintenance</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+'use strict';
+const API = '/api';
+let lastReportData = null;
+let currentReportUrl = '';
+let trendChart = null;
+let allInstruments = [];
+let instrumentsData = [];
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
+function esc(s) {
+  if (s == null) return '';
+  const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML;
+}
+function fmtDate(s) { return s ? new Date(s).toLocaleDateString() : '—'; }
+function fmtDT(s)   { if (!s) return '—'; const d = new Date(s); return d.toLocaleDateString() + ' ' + d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}); }
+function apiErr(detail) {
+  if (!detail) return 'Request failed';
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) return detail.map(x => (x.loc?x.loc.join('.')+': ':'')+x.msg).join('; ');
+  return JSON.stringify(detail);
+}
+function snack(msg, err) {
+  const el = document.getElementById('snackbar');
+  el.textContent = msg; el.className = 'snackbar show'+(err?' error':'');
+  clearTimeout(el._t); el._t = setTimeout(()=>el.classList.remove('show'), 4000);
+}
+function hfClass(score) {
+  if (score == null) return 'hf-unknown';
+  return score >= 70 ? 'hf-good' : score >= 40 ? 'hf-fair' : 'hf-poor';
+}
+
+// ─── Auth state ───────────────────────────────────────────────────────────────
+let _authToken = localStorage.getItem('cbu_token') || null;
+let _authUser  = JSON.parse(localStorage.getItem('cbu_user') || 'null');
+
+function _authHeaders(extra) {
+  const h = Object.assign({}, extra || {});
+  if (_authToken) h['Authorization'] = 'Bearer ' + _authToken;
+  return h;
+}
+
+function _handleUnauth() {
+  _authToken = null; _authUser = null;
+  localStorage.removeItem('cbu_token'); localStorage.removeItem('cbu_user');
+  showLogin();
+}
+
+// ─── API wrappers (auth-aware) ────────────────────────────────────────────────
+const api = {
+  get: url => fetch(url, {headers: _authHeaders()}).then(r => {
+    if (r.status === 401) { _handleUnauth(); return Promise.reject('Unauthenticated'); }
+    return r.json();
+  }),
+  post: (url, body) => fetch(url, {
+    method: 'POST',
+    headers: _authHeaders({'Content-Type': 'application/json'}),
+    body: JSON.stringify(body)
+  }).then(r => {
+    if (r.status === 401) { _handleUnauth(); return Promise.reject('Unauthenticated'); }
+    return r.json().then(j => ({ok: r.ok, status: r.status, body: j}));
+  }),
+  patch: (url, body) => fetch(url, {
+    method: 'PATCH',
+    headers: _authHeaders({'Content-Type': 'application/json'}),
+    body: JSON.stringify(body)
+  }).then(r => {
+    if (r.status === 401) { _handleUnauth(); return Promise.reject('Unauthenticated'); }
+    return r.json().then(j => ({ok: r.ok, status: r.status, body: j}));
+  }),
+  del: url => fetch(url, {method: 'DELETE', headers: _authHeaders()}).then(r => {
+    if (r.status === 401) { _handleUnauth(); return Promise.reject('Unauthenticated'); }
+    return {ok: r.ok, status: r.status};
+  }),
+  download: (url, filename) => fetch(url, {headers: _authHeaders()}).then(r => {
+    if (r.status === 401) { _handleUnauth(); return Promise.reject('Unauthenticated'); }
+    if (!r.ok) return Promise.reject('Download failed');
+    return r.blob().then(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+  }),
+};
+
+// ─── Login / Logout ───────────────────────────────────────────────────────────
+function showLogin() {
+  document.getElementById('login-overlay').classList.remove('hidden');
+  document.getElementById('bell-wrap').style.display = 'none';
+  document.getElementById('sidebar-footer').style.display = 'none';
+  document.getElementById('login-empno').focus();
+}
+
+function hideLogin() {
+  document.getElementById('login-overlay').classList.add('hidden');
+  document.getElementById('bell-wrap').style.display = '';
+  document.getElementById('sidebar-footer').style.display = '';
+}
+
+function applyUserUI(user) {
+  document.getElementById('user-name').textContent = user.full_name;
+  document.getElementById('user-role').textContent = user.role;
+  const initials = user.full_name.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
+  document.getElementById('sidebar-avatar').textContent = initials;
+  document.getElementById('sidebar-footer').style.display = '';
+}
+
+document.getElementById('login-btn').addEventListener('click', async () => {
+  const empno = document.getElementById('login-empno').value.trim();
+  const pass  = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.classList.remove('show');
+  if (!empno || !pass) { errEl.textContent = 'Enter employee number and password.'; errEl.classList.add('show'); return; }
+
+  const btn = document.getElementById('login-btn');
+  btn.disabled = true; btn.textContent = 'Signing in…';
+
+  const body = new URLSearchParams({ username: empno, password: pass });
+  try {
+    const r = await fetch(API + '/auth/login', { method: 'POST', body });
+    const data = await r.json();
+    if (!r.ok) {
+      errEl.textContent = data.detail || 'Login failed'; errEl.classList.add('show');
+    } else {
+      _authToken = data.access_token;
+      _authUser  = { full_name: data.full_name, role: data.role, employee_number: data.employee_number };
+      localStorage.setItem('cbu_token', _authToken);
+      localStorage.setItem('cbu_user', JSON.stringify(_authUser));
+      applyUserUI(_authUser);
+      hideLogin();
+      initApp();
+    }
+  } catch(e) {
+    errEl.textContent = 'Network error — server unreachable'; errEl.classList.add('show');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Sign In';
+  }
+});
+
+document.getElementById('login-password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('login-btn').click();
+});
+
+document.getElementById('logout-btn').addEventListener('click', () => {
+  _handleUnauth();
+  document.getElementById('login-empno').value = '';
+  document.getElementById('login-password').value = '';
+});
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+let _notifOpen = false;
+
+document.getElementById('bell-btn').addEventListener('click', e => {
+  e.stopPropagation();
+  _notifOpen = !_notifOpen;
+  document.getElementById('notif-panel').classList.toggle('open', _notifOpen);
+  if (_notifOpen) loadNotifications();
+});
+document.addEventListener('click', () => {
+  _notifOpen = false;
+  document.getElementById('notif-panel').classList.remove('open');
+});
+document.getElementById('notif-panel').addEventListener('click', e => e.stopPropagation());
+
+async function pollNotifCount() {
+  if (!_authToken) return;
+  try {
+    const data = await api.get(API + '/notifications/count');
+    const badge = document.getElementById('bell-badge');
+    if (data.unread > 0) {
+      badge.textContent = data.unread > 9 ? '9+' : data.unread;
+      badge.classList.add('show');
+    } else {
+      badge.classList.remove('show');
+    }
+  } catch(e) {}
+}
+
+async function loadNotifications() {
+  const list = document.getElementById('notif-list');
+  list.innerHTML = '<div class="notif-empty">Loading…</div>';
+  try {
+    const notifs = await api.get(API + '/notifications');
+    if (!notifs.length) { list.innerHTML = '<div class="notif-empty">No notifications</div>'; return; }
+    list.innerHTML = notifs.map(n => `
+      <div class="notif-item ${n.is_read?'':'unread'}" data-id="${n.id}" onclick="markNotifRead(${n.id},this)">
+        <div class="notif-title">${esc(n.title)}</div>
+        ${n.message ? `<div class="notif-msg">${esc(n.message)}</div>` : ''}
+        <div class="notif-time">${fmtDT(n.created_at)}</div>
+      </div>`).join('');
+    pollNotifCount();
+  } catch(e) { list.innerHTML = '<div class="notif-empty">Could not load notifications</div>'; }
+}
+
+async function markNotifRead(id, el) {
+  el.classList.remove('unread');
+  try { await api.post(API + '/notifications/' + id + '/read'); pollNotifCount(); } catch(e) {}
+}
+
+// ─── Collapsible ──────────────────────────────────────────────────────────────
+function initCollapse(hdrId, bodyId) {
+  const hdr = document.getElementById(hdrId), body = document.getElementById(bodyId);
+  hdr.addEventListener('click', () => { hdr.classList.toggle('open'); body.classList.toggle('open'); });
+}
+initCollapse('sim-hdr','sim-body');
+initCollapse('wo-form-hdr','wo-form-body');
+
+// ─── Navigation ───────────────────────────────────────────────────────────────
+const panelTitles = {
+  dashboard: 'Dashboard', instruments: 'Instrument Register',
+  workorders: 'Work Orders', alerts: 'Active Alerts',
+  trends: 'Trend Viewer', reports: 'Reports'
+};
+document.querySelectorAll('.nav-link').forEach(link => {
+  link.addEventListener('click', e => {
+    e.preventDefault();
+    const panel = link.dataset.panel;
+    document.querySelectorAll('.nav-link').forEach(l=>l.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    link.classList.add('active');
+    document.getElementById('panel-'+panel).classList.add('active');
+    document.getElementById('topbar-title').textContent = panelTitles[panel] || panel;
+    if (panel==='dashboard')   refreshDashboard();
+    if (panel==='instruments') refreshInstruments();
+    if (panel==='workorders')  { populateWoSelect(); refreshWorkOrders(); }
+    if (panel==='alerts')      refreshAlerts();
+    if (panel==='trends')      refreshTrendSelect();
+  });
+});
+
+// ─── Simulator ────────────────────────────────────────────────────────────────
+let _simCheckboxes = {};
+
+function buildSimTagList(instruments) {
+  const wrap = document.getElementById('sim-tag-list');
+  _simCheckboxes = {};
+  if (!instruments.length) {
+    wrap.innerHTML = '<span style="font-size:0.8rem;color:var(--text-3);">No instruments registered.</span>';
+    return;
+  }
+  wrap.innerHTML = '';
+  instruments.forEach(inst => {
+    const label = document.createElement('label');
+    label.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:0.8rem;cursor:pointer;background:var(--bg);border:1px solid var(--border);padding:4px 10px;border-radius:99px;';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = true; cb.value = inst.tag_number;
+    _simCheckboxes[inst.tag_number] = cb;
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(inst.tag_number + ' (' + inst.instrument_type + ')'));
+    wrap.appendChild(label);
+  });
+}
+
+function refreshSimUI() {
+  api.get(API+'/simulator/status').then(s => {
+    const el = document.getElementById('sim-status');
+    const activeTags = s.tags && s.tags.length ? ' — ' + s.tags.join(', ') : '';
+    el.textContent = s.running ? ('● Running' + activeTags) : '○ Stopped';
+    el.style.color = s.running ? 'var(--success)' : 'var(--text-3)';
+    if (s.running && s.tags && s.tags.length) {
+      Object.entries(_simCheckboxes).forEach(([tag, cb]) => { cb.checked = s.tags.includes(tag); cb.disabled = true; });
+      document.getElementById('sim-start').disabled = true;
+      document.getElementById('sim-select-all').disabled = true;
+      document.getElementById('sim-select-none').disabled = true;
+    } else {
+      Object.values(_simCheckboxes).forEach(cb => { cb.checked = true; cb.disabled = false; });
+      document.getElementById('sim-start').disabled = false;
+      document.getElementById('sim-select-all').disabled = false;
+      document.getElementById('sim-select-none').disabled = false;
+    }
+  });
+}
+
+document.getElementById('sim-select-all').addEventListener('click', () =>
+  Object.values(_simCheckboxes).forEach(cb => { cb.checked = true; }));
+document.getElementById('sim-select-none').addEventListener('click', () =>
+  Object.values(_simCheckboxes).forEach(cb => { cb.checked = false; }));
+
+document.getElementById('sim-start').addEventListener('click', () => {
+  const selected = Object.entries(_simCheckboxes).filter(([,cb])=>cb.checked).map(([tag])=>tag);
+  if (!selected.length) { snack('Select at least one instrument', true); return; }
+  api.post(API+'/simulator/start', {tags: selected})
+    .then(res => { refreshSimUI(); snack(res.body.message || 'Simulator started'); });
+});
+document.getElementById('sim-stop').addEventListener('click', () =>
+  api.post(API+'/simulator/stop').then(()=>{ refreshSimUI(); snack('Simulator stopped'); }));
+
+// ─── Live Readings ────────────────────────────────────────────────────────────
+function refreshLiveReadings() {
+  api.get(API+'/instruments/live-readings').then(readings => {
+    const wrap = document.getElementById('live-readings-wrap');
+    if (!readings.length) { wrap.innerHTML = '<p class="empty">No instruments registered.</p>'; return; }
+    let html = '<table class="data"><thead><tr><th>Tag</th><th>Type</th><th>Value</th><th>Range</th><th>Last update</th></tr></thead><tbody>';
+    readings.forEach(r => {
+      const hasVal = r.value != null;
+      const pct = hasVal && r.range_min != null && r.range_max != null && r.range_max > r.range_min
+        ? Math.max(0, Math.min(100, ((r.value - r.range_min) / (r.range_max - r.range_min)) * 100)) : null;
+      const ts = r.timestamp ? new Date(r.timestamp).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '—';
+      const barHtml = pct != null
+        ? `<div style="display:flex;align-items:center;gap:6px;"><div style="width:60px;height:5px;background:var(--border);border-radius:3px;overflow:hidden;"><div style="width:${pct.toFixed(0)}%;height:100%;background:var(--accent);"></div></div><span style="font-size:0.78rem;color:var(--text-2);">${r.range_min} – ${r.range_max} ${esc(r.unit)}</span></div>`
+        : `<span style="color:var(--text-3)">${esc(r.range_min)} – ${esc(r.range_max)} ${esc(r.unit)}</span>`;
+      html += `<tr>
+        <td><strong>${esc(r.tag_number)}</strong></td>
+        <td>${esc(r.instrument_type)}</td>
+        <td style="font-size:1.05rem;font-weight:600;">${hasVal ? r.value.toFixed(3)+' <span style="font-size:0.78rem;color:var(--text-3)">'+esc(r.unit)+'</span>' : '<span style="color:var(--text-3);font-style:italic;">No data</span>'}</td>
+        <td>${barHtml}</td>
+        <td style="color:var(--text-3);font-size:0.78rem;">${ts}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+  }).catch(() => {});
+}
+setInterval(() => {
+  if (document.getElementById('panel-dashboard').classList.contains('active')) refreshLiveReadings();
+}, 5000);
+
+// ─── Arc gauge SVG ────────────────────────────────────────────────────────────
+function arcGaugeSVG(pct, colorClass) {
+  const colors = { 'hf-good': '#059669', 'hf-fair': '#d97706', 'hf-poor': '#dc2626', 'hf-unknown': '#94a3b8' };
+  const color = colors[colorClass] || '#94a3b8';
+  // Semicircle: center 34,36, radius 28, from 180° to 0°
+  const total = 87.96; // π * 28
+  const dash = (pct / 100) * total;
+  return `<svg width="68" height="40" viewBox="0 0 68 40">
+    <path d="M6 36 A28 28 0 0 1 62 36" fill="none" stroke="#e2e8f0" stroke-width="5" stroke-linecap="round"/>
+    <path d="M6 36 A28 28 0 0 1 62 36" fill="none" stroke="${color}" stroke-width="5" stroke-linecap="round"
+      stroke-dasharray="${dash.toFixed(1)} ${total.toFixed(1)}" stroke-dashoffset="0"/>
+  </svg>`;
+}
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+async function refreshDashboard() {
+  refreshSimUI();
+  refreshLiveReadings();
+  try {
+    const [summary, instruments, wos] = await Promise.all([
+      api.get(API+'/dashboard/summary'),
+      api.get(API+'/instruments'),
+      api.get(API+'/work-orders?status=open'),
+    ]);
+    allInstruments = instruments;
+    buildSimTagList(instruments);
+    document.getElementById('s-total').textContent   = summary.total_instruments;
+    document.getElementById('s-overdue').textContent = summary.calibration_overdue;
+    document.getElementById('s-alerts').textContent  = summary.active_alerts;
+    document.getElementById('s-wo').textContent      = Array.isArray(wos) ? wos.length : '–';
+
+    const el = document.getElementById('dashboard-instruments');
+    if (!instruments.length) { el.innerHTML='<p class="empty">No instruments registered.</p>'; return; }
+    el.innerHTML = '<div class="loading-wrap"><span class="spinner"></span>Loading status…</div>';
+
+    const statuses = await Promise.allSettled(instruments.slice(0,24).map(i=>api.get(API+'/instruments/'+i.id+'/status')));
+    let html = '<div class="inst-cards">';
+    instruments.slice(0,24).forEach((inst,idx) => {
+      const s   = statuses[idx].status==='fulfilled' ? statuses[idx].value : null;
+      const rule = s ? s.rule_based_status : 'normal';
+      const sc   = rule==='critical'?'sc-critical':rule==='warning'?'sc-warning':'sc-normal';
+      const hi   = s ? s.health_index : null;
+      const pct  = hi != null ? Math.round(hi) : 0;
+      const hl   = s ? (s.health_label||'') : '';
+      const lv   = s && s.last_value != null ? s.last_value.toFixed(2) : null;
+      const anom = s ? s.anomaly_state : null;
+      const gclass = hi == null ? 'hf-unknown' : hi >= 70 ? 'hf-good' : hi >= 40 ? 'hf-fair' : 'hf-poor';
+      html += `<div class="inst-card ${sc}" onclick="goTrend('${esc(inst.tag_number)}')">
+        <div class="ic-head"><span class="ic-tag">${esc(inst.tag_number)}</span><span class="ic-type">${esc(inst.instrument_type)}</span></div>
+        ${lv!=null ? `
+          <div class="ic-gauge">
+            ${arcGaugeSVG(pct, gclass)}
+            <div class="ic-gauge-val">${lv}</div>
+            <div class="ic-gauge-unit">${esc(inst.unit||'')}</div>
+          </div>
+        ` : '<div class="ic-nodata">No recent data</div>'}
+        <div class="ic-health-row">
+          <span class="ic-health-score" style="color:${gclass==='hf-good'?'var(--success)':gclass==='hf-fair'?'var(--warning)':'var(--critical)'};">${hi!=null?pct+'%':'—'}</span>
+          <span class="ic-health-lbl">${hl||'health'}</span>
+        </div>
+        <div class="ic-badges">
+          <span class="badge ${rule}">${rule}</span>
+          ${anom&&anom!=='normal'?`<span class="badge ${anom}">ML: ${anom}</span>`:''}
+          ${inst.calibration_overdue?'<span class="badge overdue">Cal overdue</span>':''}
+          ${inst.ml_trained?'<span class="badge trained">ML</span>':''}
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+    el.innerHTML = html;
+    document.getElementById('last-refresh').textContent = 'Updated ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  } catch(e) { snack('Failed to load dashboard', true); }
+}
+
+function goTrend(tag) {
+  document.querySelectorAll('.nav-link').forEach(l=>l.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelector('[data-panel="trends"]').classList.add('active');
+  document.getElementById('panel-trends').classList.add('active');
+  document.getElementById('topbar-title').textContent = 'Trend Viewer';
+  refreshTrendSelect().then(()=>{ document.getElementById('trendTag').value=tag; loadTrend(); });
+}
+
+// ─── Instruments ──────────────────────────────────────────────────────────────
+function refreshInstruments() {
+  api.get(API+'/instruments').then(list => {
+    instrumentsData = list; allInstruments = list;
+    renderInstTable(list);
+    populateWoSelect();
+  });
+}
+function renderInstTable(list) {
+  const tbody = document.getElementById('instruments-tbody');
+  const empty = document.getElementById('instruments-empty');
+  const q = document.getElementById('inst-search').value.toLowerCase();
+  const rows = q ? list.filter(i =>
+    (i.tag_number||'').toLowerCase().includes(q) ||
+    (i.instrument_type||'').toLowerCase().includes(q) ||
+    (i.measured_variable||'').toLowerCase().includes(q) ||
+    (i.location||'').toLowerCase().includes(q)) : list;
+
+  tbody.innerHTML = '';
+  empty.style.display = rows.length ? 'none' : 'block';
+  rows.forEach(inst => {
+    const due = inst.next_calibration_due ? fmtDate(inst.next_calibration_due) : '—';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><strong>${esc(inst.tag_number)}</strong></td>
+      <td>${esc(inst.instrument_type)}</td>
+      <td>${esc(inst.measured_variable)}</td>
+      <td style="white-space:nowrap;">${inst.range_min} – ${inst.range_max} <span style="color:var(--text-3)">${esc(inst.unit||'')}</span></td>
+      <td>${due}${inst.calibration_overdue?' <span class="badge overdue">Overdue</span>':''}</td>
+      <td id="hi-${inst.id}"><span style="color:var(--text-3)">…</span></td>
+      <td id="st-${inst.id}"><span style="color:var(--text-3)">…</span></td>
+      <td class="inst-act" style="white-space:nowrap;"></td>`;
+    tbody.appendChild(tr);
+
+    const actCell = tr.querySelector('.inst-act');
+    function mkBtn(label, cls, fn) {
+      const b = document.createElement('button');
+      b.className = 'btn btn-outlined btn-sm ' + (cls||'');
+      b.textContent = label; b.addEventListener('click', fn); return b;
+    }
+    const calBtn   = mkBtn('Cal', '', ()=>openCalModal(inst.id, inst.tag_number));
+    const maintBtn = mkBtn('Maint', '', ()=>openMaintModal(inst.id, inst.tag_number));
+    const mlBtn    = mkBtn(inst.ml_trained?'Re-train ML':'Train ML', '', ()=>{
+      mlBtn.disabled=true; mlBtn.textContent='Training…';
+      api.post(API+'/ml/train/'+encodeURIComponent(inst.tag_number)).then(res=>{
+        if(!res.ok) snack(apiErr(res.body.detail),true);
+        else snack('Model trained on '+res.body.windows_used+' windows');
+        mlBtn.disabled=false; refreshInstruments();
+      }).catch(()=>{ snack('Training failed',true); mlBtn.disabled=false; });
+    });
+    const delBtn = mkBtn('Delete','btn-danger', ()=>{
+      if(!confirm('Delete '+inst.tag_number+'?\n\nAll readings, calibrations, and alerts will be removed. Work orders will be unlinked.')) return;
+      api.del(API+'/instruments/'+inst.id).then(res=>{
+        if(!res.ok){snack('Delete failed (HTTP '+res.status+')',true);return;}
+        snack('Instrument deleted'); refreshInstruments(); refreshDashboard();
+      });
+    });
+    [calBtn, maintBtn, mlBtn, delBtn].forEach((b,i)=>{ if(i) actCell.appendChild(document.createTextNode(' ')); actCell.appendChild(b); });
+
+    api.get(API+'/instruments/'+inst.id+'/status').then(s=>{
+      const stEl = document.getElementById('st-'+inst.id);
+      const hiEl = document.getElementById('hi-'+inst.id);
+      if(stEl) {
+        stEl.innerHTML = `<span class="badge ${s.rule_based_status}">${s.rule_based_status}</span>`;
+        if(s.anomaly_state&&s.anomaly_state!=='normal') stEl.innerHTML+=` <span class="badge ${s.anomaly_state}">ML:${s.anomaly_state}</span>`;
+      }
+      if(hiEl && s.health_index!=null) {
+        const pct=Math.round(s.health_index);
+        const cl=hfClass(s.health_index);
+        hiEl.innerHTML=`<div class="tbl-health"><div class="tbl-health-bar"><div class="tbl-health-fill ${cl}" style="width:${pct}%"></div></div><span style="font-size:0.75rem;">${pct}</span></div>`;
+      }
+    }).catch(()=>{});
+  });
+}
+document.getElementById('inst-search').addEventListener('input', ()=>renderInstTable(instrumentsData));
+
+document.getElementById('add-instrument-btn').addEventListener('click', ()=>{
+  document.getElementById('add-instrument-form').style.display='block';
+  document.getElementById('add-instrument-btn').style.display='none';
+});
+document.getElementById('cancel-add-btn').addEventListener('click', ()=>{
+  document.getElementById('instrument-form').reset();
+  document.getElementById('add-instrument-form').style.display='none';
+  document.getElementById('add-instrument-btn').style.display='inline-flex';
+});
+document.getElementById('instrument-form').addEventListener('submit', e=>{
+  e.preventDefault();
+  const d = {
+    tag_number:                document.getElementById('tag_number').value.trim(),
+    instrument_type:           document.getElementById('instrument_type').value,
+    measured_variable:         document.getElementById('measured_variable').value.trim(),
+    unit:                      document.getElementById('unit').value.trim(),
+    range_min:                 parseFloat(document.getElementById('range_min').value),
+    range_max:                 parseFloat(document.getElementById('range_max').value),
+    calibration_interval_days: parseInt(document.getElementById('calibration_interval_days').value,10),
+    criticality:               document.getElementById('criticality').value,
+    location:                  document.getElementById('location').value.trim()||null,
+    associated_equipment:      document.getElementById('associated_equipment').value.trim()||null,
+    accuracy_class:            document.getElementById('accuracy_class').value.trim()||null,
+    nominal_value:             document.getElementById('nominal_value').value?parseFloat(document.getElementById('nominal_value').value):null,
+  };
+  if(d.range_min>=d.range_max){snack('Range min must be less than range max',true);return;}
+  api.post(API+'/instruments',d).then(res=>{
+    if(!res.ok){snack(apiErr(res.body.detail),true);return;}
+    document.getElementById('instrument-form').reset();
+    document.getElementById('add-instrument-form').style.display='none';
+    document.getElementById('add-instrument-btn').style.display='inline-flex';
+    snack('Instrument '+res.body.tag_number+' created');
+    refreshInstruments(); refreshDashboard();
+  }).catch(()=>snack('Network error',true));
+});
+
+// ─── Calibration modal ────────────────────────────────────────────────────────
+function openCalModal(id, tag) {
+  document.getElementById('cal-instrument-id').value = id;
+  const now = new Date(); now.setMinutes(now.getMinutes()-now.getTimezoneOffset());
+  document.getElementById('cal-performed-at').value = now.toISOString().slice(0,16);
+  document.getElementById('cal-performed-by').value = '';
+  document.getElementById('cal-notes').value = '';
+  document.getElementById('modal-cal-title').textContent = 'Record Calibration – '+tag;
+  document.getElementById('modal-cal').classList.remove('hidden');
+}
+document.getElementById('modal-cal-cancel').addEventListener('click',()=>document.getElementById('modal-cal').classList.add('hidden'));
+document.getElementById('modal-cal').addEventListener('click',e=>{if(e.target===e.currentTarget)e.currentTarget.classList.add('hidden');});
+document.getElementById('modal-cal-save').addEventListener('click',()=>{
+  const at = document.getElementById('cal-performed-at').value;
+  if(!at){snack('Performed at is required',true);return;}
+  api.post(API+'/calibrations',{
+    instrument_id: parseInt(document.getElementById('cal-instrument-id').value,10),
+    performed_at:  new Date(at).toISOString(),
+    passed:        document.getElementById('cal-passed').value==='true',
+    performed_by:  document.getElementById('cal-performed-by').value.trim()||null,
+    notes:         document.getElementById('cal-notes').value.trim()||null,
+  }).then(res=>{
+    if(!res.ok){snack(apiErr(res.body.detail),true);return;}
+    snack('Calibration recorded'); document.getElementById('modal-cal').classList.add('hidden');
+    refreshInstruments(); refreshDashboard();
+  }).catch(()=>snack('Network error',true));
+});
+
+// ─── Maintenance modal ────────────────────────────────────────────────────────
+function openMaintModal(id, tag) {
+  document.getElementById('maint-instrument-id').value = id;
+  ['maint-description','maint-technician','maint-notes'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('modal-maint-title').textContent = 'Record Maintenance – '+tag;
+  document.getElementById('modal-maint').classList.remove('hidden');
+}
+document.getElementById('modal-maint-cancel').addEventListener('click',()=>document.getElementById('modal-maint').classList.add('hidden'));
+document.getElementById('modal-maint').addEventListener('click',e=>{if(e.target===e.currentTarget)e.currentTarget.classList.add('hidden');});
+document.getElementById('modal-maint-save').addEventListener('click',()=>{
+  api.post(API+'/maintenance',{
+    instrument_id: parseInt(document.getElementById('maint-instrument-id').value,10),
+    action_type:   document.getElementById('maint-action-type').value,
+    description:   document.getElementById('maint-description').value.trim()||null,
+    technician:    document.getElementById('maint-technician').value.trim()||null,
+    notes:         document.getElementById('maint-notes').value.trim()||null,
+  }).then(res=>{
+    if(!res.ok){snack(apiErr(res.body.detail),true);return;}
+    snack('Maintenance recorded'); document.getElementById('modal-maint').classList.add('hidden');
+    refreshInstruments(); refreshDashboard();
+  }).catch(()=>snack('Network error',true));
+});
+
+// ─── Work orders ──────────────────────────────────────────────────────────────
+function populateWoSelect() {
+  api.get(API+'/instruments').then(list=>{
+    const sel=document.getElementById('wo-instrument-id');
+    sel.innerHTML='<option value="">— None —</option>'+list.map(i=>`<option value="${i.id}">${esc(i.tag_number)}</option>`).join('');
+  });
+}
+function refreshWorkOrders() {
+  const st=document.getElementById('wo-filter-status').value;
+  const q=st?'?status='+encodeURIComponent(st):'';
+  api.get(API+'/work-orders'+q).then(rows=>{
+    const tbody=document.getElementById('wo-tbody'), empty=document.getElementById('wo-empty');
+    tbody.innerHTML='';
+    if(!Array.isArray(rows)||!rows.length){empty.style.display='block';return;}
+    empty.style.display='none';
+    rows.forEach(wo=>{
+      const tr=document.createElement('tr');
+      if(wo.priority==='urgent') tr.className='priority-urgent';
+      else if(wo.priority==='high') tr.className='priority-high';
+      const sid='wos-'+wo.id;
+      tr.innerHTML=`
+        <td><strong>${esc(wo.work_order_number)}</strong></td>
+        <td>${esc(wo.title)}</td>
+        <td>${wo.instrument_tag?esc(wo.instrument_tag):'<span style="color:var(--text-3)">—</span>'}</td>
+        <td>${esc(wo.work_type)}</td>
+        <td><span class="badge ${wo.priority}">${wo.priority}</span></td>
+        <td><span class="badge ${wo.status}">${wo.status.replace('_',' ')}</span></td>
+        <td style="font-size:0.78rem;color:var(--text-3);">${fmtDate(wo.created_at)}</td>
+        <td style="white-space:nowrap;">
+          <select id="${sid}" style="max-width:130px;">
+            <option value="open"${wo.status==='open'?' selected':''}>Open</option>
+            <option value="in_progress"${wo.status==='in_progress'?' selected':''}>In progress</option>
+            <option value="completed"${wo.status==='completed'?' selected':''}>Completed</option>
+            <option value="cancelled"${wo.status==='cancelled'?' selected':''}>Cancelled</option>
+          </select>
+          <button type="button" class="btn btn-outlined btn-sm wo-save" data-id="${wo.id}" style="margin-left:4px;">Save</button>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+    document.querySelectorAll('.wo-save').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        const id=parseInt(btn.dataset.id,10);
+        const val=document.getElementById('wos-'+id).value;
+        api.patch(API+'/work-orders/'+id,{status:val}).then(res=>{
+          if(!res.ok){snack(apiErr(res.body.detail),true);return;}
+          snack('Work order updated'); refreshWorkOrders();
+        });
+      });
+    });
+  });
+}
+document.getElementById('wo-refresh').addEventListener('click',refreshWorkOrders);
+document.getElementById('wo-filter-status').addEventListener('change',refreshWorkOrders);
+document.getElementById('wo-submit').addEventListener('click',()=>{
+  const title=document.getElementById('wo-title').value.trim();
+  if(!title){snack('Title is required',true);return;}
+  const inst=document.getElementById('wo-instrument-id').value;
+  api.post(API+'/work-orders',{
+    instrument_id: inst?parseInt(inst,10):null,
+    title,
+    description:   document.getElementById('wo-desc').value.trim()||null,
+    work_type:     document.getElementById('wo-type').value,
+    priority:      document.getElementById('wo-priority').value,
+    assigned_to:   document.getElementById('wo-assign').value.trim()||null,
+  }).then(res=>{
+    if(!res.ok){snack(apiErr(res.body.detail),true);return;}
+    document.getElementById('wo-title').value='';
+    document.getElementById('wo-desc').value='';
+    snack('Work order '+res.body.work_order_number+' created'); refreshWorkOrders();
+  });
+});
+
+// ─── Alerts ───────────────────────────────────────────────────────────────────
+function refreshAlerts() {
+  api.get(API+'/alerts').then(alerts=>{
+    const badge=document.getElementById('alert-badge');
+    if(alerts.length){badge.textContent=alerts.length;badge.classList.add('show');}
+    else{badge.classList.remove('show');}
+    document.getElementById('s-alerts').textContent=alerts.length;
+
+    const el=document.getElementById('alerts-list');
+    if(!alerts.length){el.innerHTML='<p class="empty">No active alerts — all instruments within normal parameters.</p>';return;}
+    el.innerHTML=alerts.map((a,i)=>`
+      <div class="alert-card ${a.state}">
+        <div class="alert-row">
+          <div class="alert-body">
+            <div class="alert-tag">${esc(a.tag_number)}</div>
+            <div class="alert-msg">${esc(a.message)}</div>
+            <div class="alert-meta">
+              <span class="alert-src ${a.source}">${a.source==='ml'?'ML Detection':'Rule'}</span>
+              <span class="badge ${a.state}">${a.state}</span>
+              ${a.timestamp?'<span class="alert-time">'+fmtDT(a.timestamp)+'</span>':''}
+            </div>
+          </div>
+          <button type="button" class="btn btn-sm wo-from-alert" data-idx="${i}" style="flex-shrink:0;align-self:center;">Create WO</button>
+        </div>
+      </div>`).join('');
+    document.querySelectorAll('.wo-from-alert').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        const a=alerts[parseInt(btn.dataset.idx,10)];
+        api.post(API+'/work-orders/from-alert',{tag_number:a.tag_number,message:a.message,alert_source:a.source,state:a.state}).then(res=>{
+          if(!res.ok){snack(apiErr(res.body.detail),true);return;}
+          snack('Created '+res.body.work_order_number);
+        });
+      });
+    });
+  });
+}
+document.getElementById('alerts-refresh').addEventListener('click',refreshAlerts);
+
+// ─── Trends ───────────────────────────────────────────────────────────────────
+function refreshTrendSelect() {
+  return api.get(API+'/instruments').then(list=>{
+    allInstruments=list;
+    const sel=document.getElementById('trendTag');
+    sel.innerHTML='<option value="">Select tag…</option>'+list.map(i=>`<option value="${esc(i.tag_number)}">${esc(i.tag_number)} — ${esc(i.measured_variable)}</option>`).join('');
+  });
+}
+function loadTrend() {
+  const tag=document.getElementById('trendTag').value;
+  if(!tag){snack('Select a tag first',true);return;}
+  const hours=parseInt(document.getElementById('trendHours').value,10);
+  document.getElementById('trend-empty').style.display='none';
+  document.getElementById('trend-stats').style.display='none';
+  api.get(API+'/readings/trends?tag_number='+encodeURIComponent(tag)+'&hours='+hours).then(data=>{
+    const readings=data.readings||[];
+    if(!readings.length){
+      document.getElementById('trend-empty').style.display='block';
+      document.getElementById('trend-empty').textContent='No readings in the selected period for '+tag+'.';
+      if(trendChart){trendChart.destroy();trendChart=null;}
+      return;
+    }
+    const inst=allInstruments.find(i=>i.tag_number===tag);
+    const unit=inst?(inst.unit||''):'';
+    buildChart(data,unit,inst);
+    const vals=readings.map(r=>r.value);
+    const mn=Math.min(...vals),mx=Math.max(...vals),avg=vals.reduce((a,b)=>a+b,0)/vals.length;
+    document.getElementById('trend-stats').textContent=
+      readings.length+' readings · Min: '+mn.toFixed(2)+' · Max: '+mx.toFixed(2)+' · Avg: '+avg.toFixed(2)+(unit?' '+unit:'');
+    document.getElementById('trend-stats').style.display='block';
+  }).catch(()=>snack('Failed to load trend data',true));
+}
+function buildChart(data,unit,inst) {
+  if(trendChart){trendChart.destroy();trendChart=null;}
+  const readings=data.readings||[];
+  const labels=readings.map(r=>new Date(r.timestamp));
+  const values=readings.map(r=>r.value);
+  const ctx=document.getElementById('trend-canvas').getContext('2d');
+  const annotations={};
+  if(inst) {
+    annotations.hi={type:'line',yMin:inst.range_max,yMax:inst.range_max,borderColor:'rgba(220,38,38,0.5)',borderWidth:1.5,borderDash:[6,4],
+      label:{display:true,content:'Max ('+inst.range_max+')',position:'end',font:{size:10},backgroundColor:'rgba(220,38,38,0.08)'}};
+    annotations.lo={type:'line',yMin:inst.range_min,yMax:inst.range_min,borderColor:'rgba(220,38,38,0.5)',borderWidth:1.5,borderDash:[6,4],
+      label:{display:true,content:'Min ('+inst.range_min+')',position:'end',font:{size:10},backgroundColor:'rgba(220,38,38,0.08)'}};
+    if(inst.nominal_value!=null)
+      annotations.nom={type:'line',yMin:inst.nominal_value,yMax:inst.nominal_value,borderColor:'rgba(5,150,105,0.5)',borderWidth:1.5,borderDash:[4,4],
+        label:{display:true,content:'Nominal',position:'start',font:{size:10},backgroundColor:'rgba(5,150,105,0.06)'}};
+  }
+  trendChart=new Chart(ctx,{
+    type:'line',
+    data:{labels,datasets:[{label:data.tag_number+(unit?' ('+unit+')':''),data:values,borderColor:'#4f46e5',backgroundColor:'rgba(79,70,229,0.06)',
+      borderWidth:2,pointRadius:readings.length>300?0:3,pointHoverRadius:5,fill:true,tension:0.3}]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      scales:{
+        x:{type:'time',time:{tooltipFormat:'dd MMM HH:mm:ss',displayFormats:{minute:'HH:mm',hour:'HH:mm',day:'dd MMM'}},grid:{color:'rgba(0,0,0,0.04)'}},
+        y:{title:{display:true,text:unit||'Value'},grid:{color:'rgba(0,0,0,0.04)'}}
+      },
+      plugins:{
+        legend:{display:false},
+        tooltip:{mode:'index',intersect:false},
+        annotation:Object.keys(annotations).length?{annotations}:{}
+      },
+      interaction:{mode:'nearest',axis:'x',intersect:false}
+    }
+  });
+}
+document.getElementById('trendRefresh').addEventListener('click',loadTrend);
+document.getElementById('trendTag').addEventListener('change',()=>{if(document.getElementById('trendTag').value) loadTrend();});
+
+// ─── Reports ──────────────────────────────────────────────────────────────────
+function renderReport(data) {
+  const sg=document.getElementById('report-summary-grid'), rd=document.getElementById('report-rendered');
+  sg.innerHTML=''; rd.innerHTML=''; sg.style.display='none';
+  if(!data||typeof data!=='object') return;
+  if(data.summary&&typeof data.summary==='object') {
+    const entries=Object.entries(data.summary).filter(([,v])=>typeof v!=='object');
+    if(entries.length) {
+      sg.style.display='flex';
+      sg.innerHTML=entries.map(([k,v])=>`<div class="report-stat"><div class="rs-val">${esc(String(v))}</div><div class="rs-lbl">${esc(k.replace(/_/g,' '))}</div></div>`).join('');
+    }
+  }
+  let tables='';
+  Object.entries(data).forEach(([key,val])=>{
+    if(!Array.isArray(val)||!val.length||key==='readings') return;
+    const hdrs=Object.keys(val[0]).filter(k=>typeof val[0][k]!=='object'||val[0][k]===null);
+    if(!hdrs.length) return;
+    tables+=`<div class="report-section-title">${esc(key.replace(/_/g,' '))}</div>
+      <div class="report-table-wrap"><table class="data" style="font-size:0.8rem;">
+        <thead><tr>${hdrs.map(h=>`<th>${esc(h.replace(/_/g,' '))}</th>`).join('')}</tr></thead>
+        <tbody>${val.slice(0,500).map(row=>`<tr>${hdrs.map(h=>{
+          const v=row[h];
+          if(v==null) return '<td>—</td>';
+          if(typeof v==='boolean') return `<td>${v?'✓':'✗'}</td>`;
+          if(typeof v==='string'&&(h.includes('date')||h.includes('_at')||h.includes('timestamp'))) return `<td>${fmtDT(v)}</td>`;
+          return `<td>${esc(String(v))}</td>`;
+        }).join('')}</tr>`).join('')}</tbody>
+      </table></div>`;
+  });
+  rd.innerHTML=tables;
+}
+function chipSummary(data) {
+  const chips=document.getElementById('report-chips');
+  chips.innerHTML='';
+  if(!data) return;
+  if(data.report_type) chips.innerHTML+=`<span class="chip">${esc(String(data.report_type).replace(/_/g,' '))}</span>`;
+  if(data.generated_at) chips.innerHTML+=`<span class="chip">Generated: ${fmtDT(data.generated_at)}</span>`;
+}
+document.querySelectorAll('.report-load').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const path=btn.getAttribute('data-endpoint'), q=btn.getAttribute('data-query')||'';
+    currentReportUrl=API+path+(q?'?'+q:'');
+    document.querySelectorAll('.report-load').forEach(b=>{b.classList.add('btn-outlined');b.classList.remove('btn');});
+    btn.classList.remove('btn-outlined'); btn.classList.add('btn');
+    api.get(currentReportUrl).then(data=>{
+      lastReportData=data;
+      chipSummary(data); renderReport(data);
+      const out=document.getElementById('report-output');
+      out.style.display='block'; out.textContent=JSON.stringify(data,null,2);
+      document.getElementById('report-download-csv').style.display='inline-flex';
+      document.getElementById('report-download-pdf').style.display='inline-flex';
+    }).catch(()=>snack('Failed to load report',true));
+  });
+});
+function dlReport(fmt) {
+  if(!currentReportUrl) return;
+  const path=currentReportUrl.replace(API,'').split('?')[0];
+  const qs=currentReportUrl.split('?')[1]||'';
+  const p=new URLSearchParams(qs); p.set('export',fmt);
+  const url=API+path+'?'+p.toString();
+  const ext=fmt==='csv'?'csv':'pdf';
+  const name='cbu-report-'+path.split('/').pop()+'.'+ext;
+  api.download(url, name).catch(()=>snack('Download failed',true));
+}
+document.getElementById('report-download-csv').addEventListener('click',()=>dlReport('csv'));
+document.getElementById('report-download-pdf').addEventListener('click',()=>dlReport('pdf'));
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+function initApp() {
+  if (_authUser) applyUserUI(_authUser);
+  refreshDashboard();
+  refreshAlerts();
+  pollNotifCount();
+  setInterval(() => {
+    if (document.getElementById('panel-dashboard').classList.contains('active')) refreshDashboard();
+    refreshAlerts();
+  }, 30000);
+  setInterval(pollNotifCount, 30000);
+}
+
+if (!_authToken) {
+  showLogin();
+} else {
+  hideLogin();
+  initApp();
+}
+</script>
+</body>
+</html>

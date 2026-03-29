@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Database
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# ML model files
+models/*.pkl
+models/*.json
+
+# IDE
+.cursor/
+.vscode/
+*.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data exports
+data/
+
+# Logs
+*.log
+
+# Env files (secrets)
+.env
+
+# Claude internal
+.claude/
