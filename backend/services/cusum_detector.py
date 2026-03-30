@@ -200,6 +200,11 @@ def reset(tag: str) -> None:
     logger.info("CUSUM: reset for %s after calibration", tag)
 
 
+def get_state(tag: str) -> "CusumState":
+    """Return the full CusumState (e.g. to read sigma for fault classification)."""
+    return get_or_create_state(tag)
+
+
 def get_alert_state(tag: str) -> str:
     """Return current drift alert state without updating."""
     return get_or_create_state(tag).alert_state

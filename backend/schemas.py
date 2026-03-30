@@ -94,6 +94,11 @@ class InstrumentStatusResponse(BaseModel):
     health_index:      float | None
     health_label:      str | None
     recommendation:    str | None
+    # Fault classification
+    fault_type:        str   = "none"       # none | stuck | spike | drift_high | drift_low | noisy
+    fault_confidence:  float = 0.0          # 0–1
+    fault_method:      str   = "rule"       # "rule" | "supervised"
+    fault_description: str   = "Normal operation"
 
 
 class AlertSummary(BaseModel):

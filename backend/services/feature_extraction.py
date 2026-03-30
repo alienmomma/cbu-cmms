@@ -87,6 +87,50 @@ def extract_features(
     }
 
 
+def extract_fault_features(readings: list[tuple]) -> dict[str, float] | None:
+    """
+    Additional features specifically diagnostic for fault classification.
+    These supplement the 10 base features — used only by the fault classifier,
+    not by the Isolation Forest (which keeps its fixed 10-feature vector).
+
+    Features
+    --------
+    max_adjacent_step   — largest |v[i+1]-v[i]| in the window  (spike)
+    mean_adjacent_step  — average step size                      (general smoothness)
+    max_run_identical   — longest run of near-identical samples  (stuck sensor)
+    step_to_std_ratio   — max_step / std                         (spike vs noise)
+    """
+    if not readings or len(readings) < 2:
+        return None
+
+    values = [v for _, v in readings]
+    n = len(values)
+
+    steps = [abs(values[i + 1] - values[i]) for i in range(n - 1)]
+    max_step  = float(max(steps))
+    mean_step = float(sum(steps) / len(steps))
+
+    # Longest run of near-identical values (floating-point equality within 1e-6)
+    eps = 1e-6
+    max_run = cur_run = 1
+    for i in range(1, n):
+        if abs(values[i] - values[i - 1]) < eps:
+            cur_run += 1
+            max_run = max(max_run, cur_run)
+        else:
+            cur_run = 1
+
+    std = float(np.std(values)) if n > 1 else 0.0
+    step_to_std = float(min(max_step / std, 100.0)) if std > 1e-9 else 0.0
+
+    return {
+        "max_adjacent_step":  max_step,
+        "mean_adjacent_step": mean_step,
+        "max_run_identical":  float(max_run),
+        "step_to_std_ratio":  step_to_std,
+    }
+
+
 def feature_vector(features: dict[str, float]) -> np.ndarray:
     """Ordered feature vector for ML model — order MUST match training order."""
     return np.array([

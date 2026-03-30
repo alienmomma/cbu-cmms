@@ -1183,6 +1183,7 @@ async function refreshDashboard() {
         <div class="ic-badges">
           <span class="badge ${rule}">${rule}</span>
           ${anom&&anom!=='normal'?`<span class="badge ${anom}">ML: ${anom}</span>`:''}
+          ${(()=>{const ft=s?s.fault_type:'none'; const fc=s?s.fault_method:'rule'; if(!ft||ft==='none') return ''; const col=ft==='stuck'?'#f97316':ft==='spike'?'#eab308':ft.startsWith('drift')?'#3b82f6':'#8b5cf6'; return `<span class="badge" style="background:${col}20;color:${col};border:1px solid ${col}40;" title="${s.fault_description||ft} (${fc}, ${Math.round((s.fault_confidence||0)*100)}%)">${ft.replace('_',' ')}</span>`; })()}
           ${inst.calibration_overdue?'<span class="badge overdue">Cal overdue</span>':''}
           ${inst.ml_trained?'<span class="badge trained">ML</span>':''}
         </div>
@@ -1254,6 +1255,14 @@ function renderInstTable(list) {
         mlBtn.disabled=false; refreshInstruments();
       }).catch(()=>{ snack('Training failed',true); mlBtn.disabled=false; });
     });
+    const faultBtn = mkBtn('Train Fault', '', ()=>{
+      faultBtn.disabled=true; faultBtn.textContent='Training…';
+      api.post(API+'/ml/fault-classifier/train/'+encodeURIComponent(inst.tag_number)).then(res=>{
+        if(!res.ok) snack(apiErr(res.body.detail),true);
+        else snack('Fault classifier trained — '+res.body.n_training_samples+' samples, classes: '+res.body.classes.join(', '));
+        faultBtn.disabled=false; faultBtn.textContent='Re-train Fault';
+      }).catch(()=>{ snack('Fault training failed',true); faultBtn.disabled=false; });
+    });
     const delBtn = mkBtn('Delete','btn-danger', ()=>{
       if(!confirm('Delete '+inst.tag_number+'?\n\nAll readings, calibrations, and alerts will be removed. Work orders will be unlinked.')) return;
       api.del(API+'/instruments/'+inst.id).then(res=>{
@@ -1261,7 +1270,7 @@ function renderInstTable(list) {
         snack('Instrument deleted'); refreshInstruments(); refreshDashboard();
       });
     });
-    [calBtn, printCalBtn, maintBtn, mlBtn, delBtn].forEach((b,i)=>{ if(i) actCell.appendChild(document.createTextNode(' ')); actCell.appendChild(b); });
+    [calBtn, printCalBtn, maintBtn, mlBtn, faultBtn, delBtn].forEach((b,i)=>{ if(i) actCell.appendChild(document.createTextNode(' ')); actCell.appendChild(b); });
 
     api.get(API+'/instruments/'+inst.id+'/status').then(s=>{
       const stEl = document.getElementById('st-'+inst.id);
@@ -1269,6 +1278,11 @@ function renderInstTable(list) {
       if(stEl) {
         stEl.innerHTML = `<span class="badge ${s.rule_based_status}">${s.rule_based_status}</span>`;
         if(s.anomaly_state&&s.anomaly_state!=='normal') stEl.innerHTML+=` <span class="badge ${s.anomaly_state}">ML:${s.anomaly_state}</span>`;
+        if(s.fault_type&&s.fault_type!=='none'){
+          const fc=s.fault_type; const col=fc==='stuck'?'#f97316':fc==='spike'?'#eab308':fc.startsWith('drift')?'#3b82f6':'#8b5cf6';
+          const pct=Math.round((s.fault_confidence||0)*100); const meth=s.fault_method==='supervised'?'RF':'rule';
+          stEl.innerHTML+=` <span class="badge" style="background:${col}20;color:${col};border:1px solid ${col}40;" title="${s.fault_description} (${meth} ${pct}%)">${fc.replace('_',' ')} <span style="opacity:.6;font-size:.7em">${meth}</span></span>`;
+        }
       }
       if(hiEl && s.health_index!=null) {
         const pct=Math.round(s.health_index);

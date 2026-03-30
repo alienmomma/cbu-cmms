@@ -256,6 +256,11 @@ async def api_instrument_status(instrument_id: int, db: AsyncSession = Depends(g
     last_ts = readings[-1][0] if readings else None
     from backend.services.anomaly_detection import get_anomaly_state, get_anomaly_score
     from backend.services.health_index import compute_health_index
+    from backend.services.feature_extraction import extract_features, extract_fault_features, feature_vector
+    from backend.services.fault_classifier import (
+        classify, is_fault_classifier_trained, FAULT_DESCRIPTIONS,
+    )
+    from backend.services.cusum_detector import get_state as cusum_get_state
     rule_status = rule_based_status(last_value, inst) if last_value is not None else "normal"
     anomaly_state = get_anomaly_state(inst.tag_number)
     anomaly_score = get_anomaly_score(inst.tag_number)
@@ -271,6 +276,31 @@ async def api_instrument_status(instrument_id: int, db: AsyncSession = Depends(g
         cusum_state=cusum_st,
         is_stuck=is_stuck,
     )
+
+    # ── Fault classification ───────────────────────────────────────────────
+    fault_type = "none"
+    fault_conf = 0.0
+    fault_meth = "rule"
+    fault_desc = "Normal operation"
+    if readings:
+        feats  = extract_features(readings, inst.nominal_value, inst.range_min, inst.range_max)
+        ffeats = extract_fault_features(readings)
+        if feats and ffeats:
+            import numpy as np
+            cusum_sigma = cusum_get_state(inst.tag_number).sigma
+            fvec = np.array(list(feats.values()) + list(ffeats.values()),
+                            dtype=float).reshape(1, -1)
+            fault_type, fault_conf, fault_meth = classify(
+                tag=inst.tag_number,
+                features=feats,
+                fault_features=ffeats,
+                cusum_state=cusum_st,
+                stuck=is_stuck,
+                cusum_sigma=cusum_sigma,
+                feature_array=fvec,
+            )
+            fault_desc = FAULT_DESCRIPTIONS.get(fault_type, fault_type)
+
     return InstrumentStatusResponse(
         tag_number=inst.tag_number,
         rule_based_status=rule_status,
@@ -285,6 +315,10 @@ async def api_instrument_status(instrument_id: int, db: AsyncSession = Depends(g
         health_index=health_index,
         health_label=health_label,
         recommendation=recommendation,
+        fault_type=fault_type,
+        fault_confidence=round(fault_conf, 3),
+        fault_method=fault_meth,
+        fault_description=fault_desc,
     )
 
 
@@ -403,6 +437,47 @@ async def api_ml_train(tag_number: str, db: AsyncSession = Depends(get_db), _use
     cusum_init(tag_number, rows, nominal_value=inst.nominal_value)
 
     return {"ok": True, "tag_number": tag_number, "windows_used": len(features_list), "version_id": version_id}
+
+
+@router.post("/ml/fault-classifier/train/{tag_number}")
+async def api_train_fault_classifier(
+    tag_number: str,
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(require_admin),
+):
+    """
+    Train the supervised fault classifier for a tag.
+
+    Generates ~1800 labelled synthetic windows (300 per fault class) using the
+    realistic process simulator model, then fits a RandomForestClassifier.
+    No live data required — can be run immediately after instrument registration.
+    """
+    inst = await get_instrument_by_tag(db, tag_number)
+    if not inst:
+        raise HTTPException(404, "Instrument not found")
+    from backend.services.fault_classifier import train_fault_classifier
+    result = train_fault_classifier(
+        tag=tag_number,
+        rmin=inst.range_min,
+        rmax=inst.range_max,
+        nominal=inst.nominal_value if inst.nominal_value is not None
+                else (inst.range_min + inst.range_max) / 2,
+    )
+    return {"ok": True, **result}
+
+
+@router.get("/ml/fault-classifier/{tag_number}")
+async def api_fault_classifier_status(
+    tag_number: str,
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(require_any_role),
+):
+    """Return whether a fault classifier has been trained for a tag."""
+    inst = await get_instrument_by_tag(db, tag_number)
+    if not inst:
+        raise HTTPException(404, "Instrument not found")
+    from backend.services.fault_classifier import is_fault_classifier_trained
+    return {"tag_number": tag_number, "trained": is_fault_classifier_trained(tag_number)}
 
 
 @router.get("/ml/models/{tag_number}")
